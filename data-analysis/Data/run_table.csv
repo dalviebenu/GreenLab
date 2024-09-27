@@ -1,2 +1,2 @@
-;;;;;;;;;;
-;run_id;status;run_number;execution_time;cpu_usage;memory_usage;energy_usage;average_CPU_frequency;workload_type;governor
+run_id,;status,;run_number,;execution_time,;cpu_usage,;memory_usage,;energy_usage,;average_CPU_frequency,;workload_type,;governor
+;;;;;;;;;
