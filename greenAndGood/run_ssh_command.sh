@@ -1,0 +1,2 @@
+#!/bin/bash
+ssh teambest@145.108.225.16 'cd DeathStarBench/socialNetwork/ && echo "greenandgood" | sudo -S energibridge --summary -o test2.csv ../wrk2/wrk -D exp -t 24 -c 800 -d 60 -L -s ./wrk2/scripts/social-network/compose-post.lua http://145.108.225.16:8080/wrk2-api/post/compose -R 10'
