@@ -84,34 +84,42 @@ class RunnerConfig:
         For example, starting the target system to measure.
         Activities after starting the run should also be performed here."""
 
-        pass
+        cpu_limit = context.run_variation['cpu_limit']
+
+        # start the target
+        self.target = subprocess.Popen(['python', './primer.py'],
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR,
+                                       )
+
+        # Configure the environment based on the current variation
+        subprocess.check_call(shlex.split(f'cpulimit -b -p {self.target.pid} --limit {cpu_limit}'))
 
     def start_measurement(self, context: RunnerContext) -> None:
         """Perform any activity required for starting measurements."""
 
         # Define the SSH command
         ssh_command = (
-            "ssh teambest@145.108.225.16 'cd DeathStarBench/socialNetwork/ && "
-            'echo "greenandgood" | sudo -S energibridge --summary -o test2.csv '
-            "../wrk2/wrk -D exp -t 24 -c 800 -d 60 -L -s ./wrk2/scripts/social-network/compose-post.lua "
-            "http://145.108.225.16:8080/wrk2-api/post/compose -R 10'"
+            "sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'cd DeathStarBench/socialNetwork/ && sudo energibridge --summary -o test2.csv ../wrk2/wrk -D exp -t 24 -c 800 -d 60 -L -s ./wrk2/scripts/social-network/compose-post.lua http://145.108.225.16:8080/wrk2-api/post/compose -R 10'"
         )
 
-        # Path to the script file to execute the command
-        script_path = self.ROOT_DIR / "run_ssh_command.sh"
+        time.sleep(1) # allow the process to run a little before measuring
+        self.profiler = subprocess.Popen(shlex.split(ssh_command))
 
-        # Create a new shell script file that contains the SSH command
-        with open(script_path, "w") as file:
-            file.write("#!/bin/bash\n")
-            file.write(ssh_command)
-
-        # Make the script executable
-        subprocess.check_call(["chmod", "+x", str(script_path)])
-
-        # Execute the generated script
-        self.profiler = subprocess.Popen([str(script_path)])
-
-        time.sleep(1)  # Allow the process to run a little before measuring
+        # # Path to the script file to execute the command
+        # script_path = self.ROOT_DIR / "run_ssh_command.sh"
+        #
+        # # Create a new shell script file that contains the SSH command
+        # with open(script_path, "w") as file:
+        #     file.write("#!/bin/bash\n")
+        #     file.write(ssh_command)
+        #
+        # # Make the script executable
+        # subprocess.check_call(["chmod", "+x", str(script_path)])
+        #
+        # # Execute the generated script
+        # self.profiler = subprocess.Popen([str(script_path)])
+        #
+        # time.sleep(1)  # Allow the process to run a little before measuring
 
     def interact(self, context: RunnerContext) -> None:
         """Perform any interaction with the running target system here, or block here until the target finishes."""
@@ -122,13 +130,15 @@ class RunnerConfig:
     def stop_measurement(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping measurements."""
 
+        os.kill(self.profiler.pid, signal.SIGINT) # graceful shutdown of powerjoular
         self.profiler.wait()
 
     def stop_run(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping the run.
         Activities after stopping the run should also be performed here."""
 
-        pass
+        self.target.kill()
+        self.target.wait()
 
     def populate_run_data(self, context: RunnerContext) -> Optional[Dict[str, SupportsStr]]:
         """Parse and process any measurement data here.
