@@ -22,7 +22,7 @@ def run_ssh_command():
 def copy_csv_file():
     # SCP command to copy the CSV file from the remote server to local desktop
     scp_command = (
-        'sshpass -p "greenandgood" scp teambest@145.108.225.16:/home/teambest/DeathStarBench/socialNetwork/testCristi3.csv /Users/yyy/Projects/greenLab/try2-experiment-runner/experiment-runner/'
+        'sshpass -p "greenandgood" scp teambest@145.108.225.16:/home/teambest/DeathStarBench/socialNetwork/testCristi3.csv /Users/yyy/Projects/greenLab/experiment-runner-forked-by-me/GreenLab-experiment-runner/'
     )
 
     # Execute the SCP command

@@ -21,7 +21,7 @@ class RunnerConfig:
 
     # ================================ USER SPECIFIC CONFIG ================================
     """The name of the experiment."""
-    name:                       str             = "new_runner_experiment"
+    name:                       str             = "new_runner_experiment2"
 
     """The path in which Experiment Runner will create a folder with the name `self.name`, in order to store the
     results from this experiment. (Path does not need to exist - it will be created if necessary.)
@@ -77,6 +77,8 @@ class RunnerConfig:
         """Perform any activity required before starting a run.
         No context is available here as the run is not yet active (BEFORE RUN)"""
 
+        #TODO: add here governor change; also add a sleep to switch governor
+
         pass
 
     def start_run(self, context: RunnerContext) -> None:
@@ -84,22 +86,30 @@ class RunnerConfig:
         For example, starting the target system to measure.
         Activities after starting the run should also be performed here."""
 
-        cpu_limit = context.run_variation['cpu_limit']
+        # ssh_command = (
+        #     'sshpass -p "greenandgood" ssh teambest@145.108.225.16'
+        # )
+
+        # cpu_limit = context.run_variation['cpu_limit']
 
         # start the target
-        self.target = subprocess.Popen(['python', './primer.py'],
+        self.target = subprocess.Popen(['sshpass -p "greenandgood" ssh teambest@145.108.225.16 ', '\'sleep 60', '& echo $!\''], #to return the process id
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR,
                                        )
 
+        self.target = self.target.stdout.read()
+        print(self.target)
+
         # Configure the environment based on the current variation
-        subprocess.check_call(shlex.split(f'cpulimit -b -p {self.target.pid} --limit {cpu_limit}'))
+        # subprocess.check_call(shlex.split(f'cpulimit -b -p {self.target.pid} --limit {cpu_limit}'))
 
     def start_measurement(self, context: RunnerContext) -> None:
         """Perform any activity required for starting measurements."""
 
         # Define the SSH command
         ssh_command = (
-            "sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'cd DeathStarBench/socialNetwork/ && sudo energibridge --summary -o test2.csv ../wrk2/wrk -D exp -t 24 -c 800 -d 60 -L -s ./wrk2/scripts/social-network/compose-post.lua http://145.108.225.16:8080/wrk2-api/post/compose -R 10'"
+            # f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -tp {self.target}'"  #TODO: change self.target to docker id
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -tp {self.target}'"
         )
 
         time.sleep(1) # allow the process to run a little before measuring
