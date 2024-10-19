@@ -1,6 +1,7 @@
 import shlex
 import subprocess
 import time
+from http.cookiejar import debug
 
 from EventManager.Models.RunnerEvents import RunnerEvents
 from EventManager.EventSubscriptionController import EventSubscriptionController
@@ -14,6 +15,9 @@ from ProgressManager.Output.OutputProcedure import OutputProcedure as output
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from os.path import dirname, realpath
+import os
+import signal
+import pandas as pd
 
 
 class RunnerConfig:
@@ -21,7 +25,7 @@ class RunnerConfig:
 
     # ================================ USER SPECIFIC CONFIG ================================
     """The name of the experiment."""
-    name:                       str             = "new_runner_experiment2"
+    name:                       str             = "new_runner_experiment4"
 
     """The path in which Experiment Runner will create a folder with the name `self.name`, in order to store the
     results from this experiment. (Path does not need to exist - it will be created if necessary.)
@@ -61,9 +65,7 @@ class RunnerConfig:
         sampling_factor = FactorModel("sampling", [10, 50, 100])
         self.run_table_model = RunTableModel(
             factors = [sampling_factor],
-            data_columns=['dram_energy', 'package_energy',
-                          'pp0_energy', 'pp1_energy']
-
+            data_columns=['cpu_usage', 'total_power']
         )
         return self.run_table_model
 
@@ -92,12 +94,12 @@ class RunnerConfig:
 
         # cpu_limit = context.run_variation['cpu_limit']
 
-        # start the target
-        self.target = subprocess.Popen(['sshpass -p "greenandgood" ssh teambest@145.108.225.16 ', '\'sleep 60', '& echo $!\''], #to return the process id
-                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR,
-                                       )
+        self.target = subprocess.Popen(['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
+        )
 
-        self.target = self.target.stdout.read()
+
+        # self.target = self.target.stdout.read()
         print(self.target)
 
         # Configure the environment based on the current variation
@@ -108,9 +110,10 @@ class RunnerConfig:
 
         # Define the SSH command
         ssh_command = (
-            # f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -tp {self.target}'"  #TODO: change self.target to docker id
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -tp {self.target}'"
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -f powerjoular_remote.csv'"
         )
+
+        print("ssh_command: " + ssh_command)
 
         time.sleep(1) # allow the process to run a little before measuring
         self.profiler = subprocess.Popen(shlex.split(ssh_command))
@@ -135,7 +138,8 @@ class RunnerConfig:
         """Perform any interaction with the running target system here, or block here until the target finishes."""
 
         output.console_log("Running program for 20 seconds")
-        time.sleep(20)
+        # time.sleep(20)
+        time.sleep(5)
 
     def stop_measurement(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping measurements."""
@@ -155,13 +159,26 @@ class RunnerConfig:
         You can also store the raw measurement data under `context.run_dir`
         Returns a dictionary with keys `self.run_table_model.data_columns` and their values populated"""
 
-        df = pd.read_csv(context.run_dir / f"energibridge.csv")
+        # df = pd.read_csv(context.run_dir / f"energibridge.csv")
+        # run_data = {
+        #     'dram_energy'   : round(df['DRAM_ENERGY (J)'].sum(), 3),
+        #     'package_energy': round(df['PACKAGE_ENERGY (J)'].sum(), 3),
+        #     'pp0_energy'    : round(df['PP0_ENERGY (J)'].sum(), 3),
+        #     'pp1_energy'    : round(df['PP1_ENERGY (J)'].sum(), 3),
+        # }
+
+        # powerjoular.csv - Power consumption of the whole system
+        # powerjoular.csv-PID.csv - Power consumption of that specific process
+        # df = pd.read_csv(context.run_dir / f"powerjoular.csv-{self.target.pid}.csv")
+
+        # df = context.run_dir / f"powerjoular_remote.csv"
+        df = pd.read_csv(f"powerjoular_remote.csv")
+            print(f"File not found")
         run_data = {
-            'dram_energy'   : round(df['DRAM_ENERGY (J)'].sum(), 3),
-            'package_energy': round(df['PACKAGE_ENERGY (J)'].sum(), 3),
-            'pp0_energy'    : round(df['PP0_ENERGY (J)'].sum(), 3),
-            'pp1_energy'    : round(df['PP1_ENERGY (J)'].sum(), 3),
+            'cpu_usage': round(df['CPU Utilization'].sum(), 3),
+            'total_power': round(df['Total Power'].sum(), 3),
         }
+
         return run_data
 
     def after_experiment(self) -> None:
