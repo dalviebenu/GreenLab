@@ -24,7 +24,7 @@ class RunnerConfig:
 
     # ================================ USER SPECIFIC CONFIG ================================
     """The name of the experiment."""
-    name:                       str             = "new_runner_experiment10"
+    name:                       str             = "new_runner_experiment11"
 
     """The path in which Experiment Runner will create a folder with the name `self.name`, in order to store the
     results from this experiment. (Path does not need to exist - it will be created if necessary.)
@@ -81,8 +81,8 @@ class RunnerConfig:
             # ]
             data_columns=[
                     'cpu_usage',             # CPU usage percentage
-                    'total_power',           # Total Power
-                    'workload_type'          # What type of workload is the network under
+                    'total_power'           # Total Power
+                    # 'workload_type'          # What type of workload is the network under
                 ]
         )
 
@@ -94,20 +94,21 @@ class RunnerConfig:
 
         pass
 
-    def before_run(self, graph_type: str, governor_type: str) -> None:
-        """Change governor type and workload type dynamically before starting the run."""
+    def before_run(self) -> None:
+        """Perform any activity required before starting a run.
+        No context is available here as the run is not yet active (BEFORE RUN)"""
 
-        # dynamically based on the governor_type passed
+        # Change CPU governor
         governor_command = (
-            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 "
-            f"'echo \"{governor_type}\" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor'"
+            "sshpass -p 'greenandgood' ssh teambest@145.108.225.16 "
+            "'echo \"ondemand\" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor'"
         )
 
         # Run the command using subprocess
         try:
-            output.console_log(f"Changing CPU governor to {governor_type}")
+            output.console_log("Changing CPU governor to schedutil")
             subprocess.check_call(governor_command, shell=True)
-            output.console_log(f"Governor successfully changed to {governor_type}")
+            output.console_log("Governor successfully changed to schedutil")
 
             # Adding a small sleep to ensure governor change is applied
             time.sleep(2)
@@ -119,19 +120,6 @@ class RunnerConfig:
             ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
         )
-        # Initialize the social graph
-        self.initialize_social_graph(graph_type)
-
-    def initialize_social_graph(self, graph_type: str) -> None:
-        """Run the command to initialize the social graph with the provided graph_type."""
-        graph_command = f"python3 scripts/init_social_graph.py --graph={graph_type}"
-        output.console_log(f"Initializing social graph with {graph_type}")
-
-        try:
-            subprocess.check_call(shlex.split(graph_command), cwd="/home/teambest/DeathStarBench/socialNetwork")
-            output.console_log(f"Successfully initialized social graph: {graph_type}")
-        except subprocess.CalledProcessError as e:
-            output.console_log(f"Failed to initialize social graph {graph_type}: {e}")
 
     def start_run(self, context: RunnerContext) -> None:
         """Perform any activity required for starting the run here.
