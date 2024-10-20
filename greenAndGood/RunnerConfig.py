@@ -1,7 +1,6 @@
 import shlex
 import subprocess
 import time
-from http.cookiejar import debug
 
 from EventManager.Models.RunnerEvents import RunnerEvents
 from EventManager.EventSubscriptionController import EventSubscriptionController
@@ -12,7 +11,7 @@ from ConfigValidator.Config.Models.OperationType import OperationType
 from ExtendedTyping.Typing import SupportsStr
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, Optional
 from pathlib import Path
 from os.path import dirname, realpath
 import os
@@ -25,7 +24,7 @@ class RunnerConfig:
 
     # ================================ USER SPECIFIC CONFIG ================================
     """The name of the experiment."""
-    name:                       str             = "new_runner_experiment4"
+    name:                       str             = "new_runner_experiment10"
 
     """The path in which Experiment Runner will create a folder with the name `self.name`, in order to store the
     results from this experiment. (Path does not need to exist - it will be created if necessary.)
@@ -57,16 +56,36 @@ class RunnerConfig:
         ])
         self.run_table_model = None  # Initialized later
 
-        output.console_log("Custom config loaded")
+        output.console_log("RunnerConfig initialized")
 
     def create_run_table_model(self) -> RunTableModel:
         """Create and return the run_table model here. A run_table is a List (rows) of tuples (columns),
         representing each run performed"""
+        # Define any factors influencing the experiment (e.g., sampling frequency or any other dynamic configuration)
         sampling_factor = FactorModel("sampling", [10, 50, 100])
+
+        # Define the data columns that are part of the table
         self.run_table_model = RunTableModel(
-            factors = [sampling_factor],
-            data_columns=['cpu_usage', 'total_power']
+            factors=[sampling_factor],
+            # data_columns=[
+            #     'run_id',                # Unique identifier for each run
+            #     'status',                # Status of the run (success, failure, etc.)
+            #     'run_number',            # Sequential number for the run
+            #     'execution_time',        # Total execution time in seconds
+            #     'cpu_usage',             # CPU usage percentage
+            #     'memory_usage',          # Memory usage in MB or percentage
+            #     'energy_usage',          # Total energy consumption (e.g., in joules)
+            #     'average_CPU_frequency', # Average CPU frequency during the run
+            #     'workload_type',         # Type of workload (e.g., CPU-bound, IO-bound)
+            #     'governor'               # CPU governor (e.g., performance, powersave)
+            # ]
+            data_columns=[
+                    'cpu_usage',             # CPU usage percentage
+                    'total_power',           # Total Power
+                    'workload_type'          # What type of workload is the network under
+                ]
         )
+
         return self.run_table_model
 
     def before_experiment(self) -> None:
@@ -75,77 +94,122 @@ class RunnerConfig:
 
         pass
 
-    def before_run(self) -> None:
-        """Perform any activity required before starting a run.
-        No context is available here as the run is not yet active (BEFORE RUN)"""
+    def before_run(self, graph_type: str, governor_type: str) -> None:
+        """Change governor type and workload type dynamically before starting the run."""
 
-        #TODO: add here governor change; also add a sleep to switch governor
+        # dynamically based on the governor_type passed
+        governor_command = (
+            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 "
+            f"'echo \"{governor_type}\" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor'"
+        )
 
-        pass
+        # Run the command using subprocess
+        try:
+            output.console_log(f"Changing CPU governor to {governor_type}")
+            subprocess.check_call(governor_command, shell=True)
+            output.console_log(f"Governor successfully changed to {governor_type}")
+
+            # Adding a small sleep to ensure governor change is applied
+            time.sleep(2)
+        except subprocess.CalledProcessError as e:
+            output.console_log(f"Failed to change CPU governor: {e}")
+
+        # Start the main task or system interaction after changing the governor
+        self.target = subprocess.Popen(
+            ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
+        )
+        # Initialize the social graph
+        self.initialize_social_graph(graph_type)
+
+    def initialize_social_graph(self, graph_type: str) -> None:
+        """Run the command to initialize the social graph with the provided graph_type."""
+        graph_command = f"python3 scripts/init_social_graph.py --graph={graph_type}"
+        output.console_log(f"Initializing social graph with {graph_type}")
+
+        try:
+            subprocess.check_call(shlex.split(graph_command), cwd="/home/teambest/DeathStarBench/socialNetwork")
+            output.console_log(f"Successfully initialized social graph: {graph_type}")
+        except subprocess.CalledProcessError as e:
+            output.console_log(f"Failed to initialize social graph {graph_type}: {e}")
 
     def start_run(self, context: RunnerContext) -> None:
         """Perform any activity required for starting the run here.
         For example, starting the target system to measure.
         Activities after starting the run should also be performed here."""
 
-        # ssh_command = (
-        #     'sshpass -p "greenandgood" ssh teambest@145.108.225.16'
-        # )
-
-        # cpu_limit = context.run_variation['cpu_limit']
-
         self.target = subprocess.Popen(['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
         )
 
-
         # self.target = self.target.stdout.read()
         print(self.target)
 
-        # Configure the environment based on the current variation
-        # subprocess.check_call(shlex.split(f'cpulimit -b -p {self.target.pid} --limit {cpu_limit}'))
 
     def start_measurement(self, context: RunnerContext) -> None:
         """Perform any activity required for starting measurements."""
 
         # Define the SSH command
         ssh_command = (
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -f powerjoular_remote.csv'"
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -f powerjoular_remote2.csv'"
         )
-
-        print("ssh_command: " + ssh_command)
 
         time.sleep(1) # allow the process to run a little before measuring
         self.profiler = subprocess.Popen(shlex.split(ssh_command))
 
-        # # Path to the script file to execute the command
-        # script_path = self.ROOT_DIR / "run_ssh_command.sh"
-        #
-        # # Create a new shell script file that contains the SSH command
-        # with open(script_path, "w") as file:
-        #     file.write("#!/bin/bash\n")
-        #     file.write(ssh_command)
-        #
-        # # Make the script executable
-        # subprocess.check_call(["chmod", "+x", str(script_path)])
-        #
-        # # Execute the generated script
-        # self.profiler = subprocess.Popen([str(script_path)])
-        #
-        # time.sleep(1)  # Allow the process to run a little before measuring
 
     def interact(self, context: RunnerContext) -> None:
         """Perform any interaction with the running target system here, or block here until the target finishes."""
 
-        output.console_log("Running program for 20 seconds")
-        # time.sleep(20)
-        time.sleep(5)
+        # Define the working directory and the wrk command
+        wrk_command = (
+            "sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 "
+            "\'cd DeathStarBench/socialNetwork/ && "
+            "../wrk2/wrk -D exp -t 24 -c 800 -d 60 -L "
+            "-s ./wrk2/scripts/social-network/compose-post.lua "
+            "http://145.108.225.16:8080/wrk2-api/post/compose -R 10\'"
+        )
+
+        # Run the wrk2 command, changing the working directory to /home/teambest/DeathStarBench/socialNetwork
+        wrk_process = subprocess.Popen(
+            shlex.split(wrk_command),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            # cwd=working_dir  # This sets the working directory for the wrk command
+        )
+
+        # Wait for the wrk2 process to complete
+        output.console_log("Running wrk2 workload generation for 60 seconds")
+        stdout, stderr = wrk_process.communicate()  # Block here until wrk2 finishes
+
+        if wrk_process.returncode == 0:
+            output.console_log("wrk2 command completed successfully")
+            print(stdout.decode())  # Print the output of the command
+        else:
+            output.console_log(f"wrk2 command failed with return code {wrk_process.returncode}")
+            print(stderr.decode())  # Print the error output if the command fails
+
+        output.console_log("Running program for 65 seconds")
+        time.sleep(65)
 
     def stop_measurement(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping measurements."""
 
         os.kill(self.profiler.pid, signal.SIGINT) # graceful shutdown of powerjoular
         self.profiler.wait()
+
+        # Wait for the powerjoular file to be written on the remote server
+        time.sleep(2)  # Small delay to ensure the file is written
+
+        # Copy the file from the remote server to the local machine using scp
+        scp_command = (
+            f"sshpass -p 'greenandgood' scp teambest@145.108.225.16:/home/teambest/powerjoular_remote2.csv {context.run_dir}"
+        )
+
+        print("scp_command: " + scp_command)
+
+        # Run the scp command to copy the file locally
+        subprocess.check_call(shlex.split(scp_command))
 
     def stop_run(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping the run.
@@ -159,32 +223,26 @@ class RunnerConfig:
         You can also store the raw measurement data under `context.run_dir`
         Returns a dictionary with keys `self.run_table_model.data_columns` and their values populated"""
 
-        # df = pd.read_csv(context.run_dir / f"energibridge.csv")
-        # run_data = {
-        #     'dram_energy'   : round(df['DRAM_ENERGY (J)'].sum(), 3),
-        #     'package_energy': round(df['PACKAGE_ENERGY (J)'].sum(), 3),
-        #     'pp0_energy'    : round(df['PP0_ENERGY (J)'].sum(), 3),
-        #     'pp1_energy'    : round(df['PP1_ENERGY (J)'].sum(), 3),
-        # }
+        #To account for cases where more lines than 5 are introduced by powerjoular when saving the table
+        try:
+            # Load the CSV file while ignoring bad lines
+            df = pd.read_csv(context.run_dir / 'powerjoular_remote2.csv', on_bad_lines='skip')
 
-        # powerjoular.csv - Power consumption of the whole system
-        # powerjoular.csv-PID.csv - Power consumption of that specific process
-        # df = pd.read_csv(context.run_dir / f"powerjoular.csv-{self.target.pid}.csv")
+            # Calculate the total CPU utilization and total power consumption
+            run_data = {
+                'cpu_usage': round(df['CPU Utilization'].mean(), 3),
+                'total_power': round(df['Total Power'].sum(), 3)
+            }
 
-        # df = context.run_dir / f"powerjoular_remote.csv"
-        df = pd.read_csv(f"powerjoular_remote.csv")
-            print(f"File not found")
-        run_data = {
-            'cpu_usage': round(df['CPU Utilization'].sum(), 3),
-            'total_power': round(df['Total Power'].sum(), 3),
-        }
+            return run_data
 
-        return run_data
+        except pd.errors.ParserError as e:
+            output.console_log(f"CSV parsing failed: {e}")
+            return None
 
     def after_experiment(self) -> None:
         """Perform any activity required after stopping the experiment here
         Invoked only once during the lifetime of the program."""
-
         pass
 
     # ================================ DO NOT ALTER BELOW THIS LINE ================================
