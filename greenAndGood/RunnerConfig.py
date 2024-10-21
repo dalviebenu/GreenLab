@@ -1,24 +1,21 @@
+import os
 import shlex
-import string
+import signal
 import subprocess
 import time
+from os.path import dirname, realpath
+from pathlib import Path
+from typing import Dict, Optional
 
-from EventManager.Models.RunnerEvents import RunnerEvents
-from EventManager.EventSubscriptionController import EventSubscriptionController
-from ConfigValidator.Config.Models.RunTableModel import RunTableModel
+import pandas as pd
 from ConfigValidator.Config.Models.FactorModel import FactorModel
-from ConfigValidator.Config.Models.RunnerContext import RunnerContext
 from ConfigValidator.Config.Models.OperationType import OperationType
+from ConfigValidator.Config.Models.RunTableModel import RunTableModel
+from ConfigValidator.Config.Models.RunnerContext import RunnerContext
+from EventManager.EventSubscriptionController import EventSubscriptionController
+from EventManager.Models.RunnerEvents import RunnerEvents
 from ExtendedTyping.Typing import SupportsStr
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
-import argparse
-
-from typing import Dict, Optional
-from pathlib import Path
-from os.path import dirname, realpath
-import os
-import signal
-import pandas as pd
 
 
 class RunnerConfig:
@@ -26,7 +23,7 @@ class RunnerConfig:
 
     # ================================ USER SPECIFIC CONFIG ================================
     """The name of the experiment."""
-    # name:                       str             = "new_runner_experiment16" #TODO change this
+    # name:                       str             = "new_runner_experiment16"
 
     """The path in which Experiment Runner will create a folder with the name `self.name`, in order to store the
     results from this experiment. (Path does not need to exist - it will be created if necessary.)
@@ -42,37 +39,30 @@ class RunnerConfig:
 
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     # e.g. Setting some variable based on some criteria
-    def __init__(self, governor_type: str, workload_type: str):
+    def __init__(self, governor_type: str, workload_type: str, network_type: str):
         """Executes immediately after program start, on config load"""
         """Initializes the RunnerConfig with graph_type and governor_type"""
-        # parser = argparse.ArgumentParser(description="A simple script to demonstrate CLI arguments.")
-        # parser.add_argument("--graph_type", type=str, required=True, help="Specify the graph type")
-        # parser.add_argument("--governor_type", type=str, required=True, help="Specify the governor type")
-        #
-        # # Use parse_known_args to ignore unrecognized arguments
-        # args, unknown = parser.parse_known_args()
-
-        # self.graph_type = args.graph_type
-        # self.governor_type = args.governor_type
 
         self.governor_type = governor_type
         self.workload_type = int (workload_type)
-        self.name = f"experiment_{time.strftime('%Y%m%d_%H%M%S')}"  # Generate name based on the current time
+        self.network_type = network_type
+        self.name = f"experiment_{time.strftime('%Y%m%d_%H%M%S')}"  # Generate an experiment name based on the current time
         print(f"Experiment name: {self.name}")
         print(f"Governor type: {self.governor_type}")
         print(f"Workload type: {self.workload_type}")
+        print(f"Network type: {self.network_type}")
 
         EventSubscriptionController.subscribe_to_multiple_events([
-            (RunnerEvents.BEFORE_EXPERIMENT, self.before_experiment),
-            (RunnerEvents.BEFORE_RUN       , self.before_run       ),
-            (RunnerEvents.START_RUN        , self.start_run        ),
-            (RunnerEvents.START_MEASUREMENT, self.start_measurement),
-            (RunnerEvents.INTERACT         , self.interact         ),
-            (RunnerEvents.STOP_MEASUREMENT , self.stop_measurement ),
-            (RunnerEvents.STOP_RUN         , self.stop_run         ),
-            (RunnerEvents.POPULATE_RUN_DATA, self.populate_run_data),
-            (RunnerEvents.AFTER_EXPERIMENT , self.after_experiment )
-        ])
+                    (RunnerEvents.BEFORE_EXPERIMENT, self.before_experiment),
+                    (RunnerEvents.BEFORE_RUN       , self.before_run       ),
+                    (RunnerEvents.START_RUN        , self.start_run        ),
+                    (RunnerEvents.START_MEASUREMENT, self.start_measurement),
+                    (RunnerEvents.INTERACT         , self.interact         ),
+                    (RunnerEvents.STOP_MEASUREMENT , self.stop_measurement ),
+                    (RunnerEvents.STOP_RUN         , self.stop_run         ),
+                    (RunnerEvents.POPULATE_RUN_DATA, self.populate_run_data),
+                    (RunnerEvents.AFTER_EXPERIMENT , self.after_experiment )
+                ])
         self.run_table_model = None  # Initialized later
 
         print("RunnerConfig initialized")
@@ -85,8 +75,12 @@ class RunnerConfig:
         sampling_factor = FactorModel("sampling", [10, 50, 100])
 
         # Define the data columns that are part of the table
+        governor_types = FactorModel('governor_type', ["schedutil", "performance", "powersave", "userspace", "ondemand", "conservative"])
+        workload_types = FactorModel("workload_type", ["low", "medium", "high"])
+        network_type = FactorModel("network_type", ["socfb-Reed98", "ego-twitter", "soc-twitter-follows-mun"])
         self.run_table_model = RunTableModel(
-            factors=[sampling_factor],
+            factors=[governor_types, workload_types, network_type],
+            # factors=[sampling_factor],
             # data_columns=[
             #     'run_id',                # Unique identifier for each run
             #     'status',                # Status of the run (success, failure, etc.)
@@ -102,30 +96,26 @@ class RunnerConfig:
             data_columns=[
                     'cpu_usage',             # CPU usage percentage
                     'total_power',            # Total Power
-                    'governor'               # CPU governor type
                 ]
         )
 
         return self.run_table_model
 
     def before_experiment(self) -> None:
-        """Perform any activity required before starting the experiment here
-        Invoked only once during the lifetime of the program."""
-    pass
+        """Perform any activity required before starting the experiment"""
         # Initialize the social graph
-    #     self.initialize_social_graph()  # You can pass other graph names like 'ego-twitter' or 'soc-twitter-follows-mun'
-    #
-    #
-    # def initialize_social_graph(self) -> None:
-    #     """Run the command to initialize the social graph with the provided graph_type."""
-    #     graph_command = f"python3 scripts/init_social_graph.py --graph={self.graph_type}"
-    #     output.console_log(f"Initializing social graph with {self.graph_type}")
-    #
-    #     try:
-    #         subprocess.check_call(shlex.split(graph_command), cwd="/home/teambest/DeathStarBench/socialNetwork")
-    #         output.console_log(f"Successfully initialized social graph: {self.graph_type}")
-    #     except subprocess.CalledProcessError as e:
-    #         output.console_log(f"Failed to initialize social graph {self.graph_type}: {e}")
+        self.initialize_social_graph()
+
+    def initialize_social_graph(self) -> None:
+        """Run the command to initialize the social graph with the provided network_type."""
+        graph_command = f"python3 scripts/init_social_graph.py --graph={self.network_type}"
+        output.console_log(f"Initializing social graph with {self.network_type}")
+
+        try:
+            subprocess.check_call(shlex.split(graph_command), cwd=self.ROOT_DIR)
+            output.console_log(f"Successfully initialized social graph: {self.network_type}")
+        except subprocess.CalledProcessError as e:
+            output.console_log(f"Failed to initialize social graph {self.network_type}: {e}")
 
     def before_run(self) -> None:
         """Change CPU governor and initialize the social graph dynamically before starting the run."""
@@ -268,10 +258,8 @@ class RunnerConfig:
 
             # Calculate the total CPU utilization and total power consumption
             run_data = {
-                'cpu_usage': round(df['CPU Utilization'].mean(), 3),
-                'total_power': round(df['Total Power'].sum(), 3),
-                'governor': self.governor_type
-                # 'workload_type': self.graph_type
+                'cpu_usage': round(df['CPU Utilization'].median, 3),
+                'total_power': round(df['Total Power'].sum(), 3)
             }
 
             return run_data
@@ -281,30 +269,10 @@ class RunnerConfig:
             return None
 
     def after_experiment(self) -> None:
-        """Perform any activity required after stopping the experiment here
+        """Perform any activity required after stopping the experiment here.
         Invoked only once during the lifetime of the program."""
-        pass
 
-    # def run_multiple_experiments():
-    #     # Define the combinations of graph_type and governor_type
-    #     experiments = [
-    #         {"graph_type": "socfb-Reed98", "governor_type": "ondemand"},
-    #         {"graph_type": "socfb-Reed98", "governor_type": "powersave"},
-    #         {"graph_type": "socfb-Reed98", "governor_type": "schedutil"}
-    #         # {"graph_type": "soc-twitter", "governor_type": "performance"},
-    #         # {"graph_type": "soc-twitter", "governor_type": "powersave"},
-    #     ]
-    #
-    #     # Iterate over each experiment and execute the runner config
-    #     for experiment in experiments:
-    #         print(f"\nStarting experiment with {experiment['graph_type']} and {experiment['governor_type']}")
-    #         runner = RunnerConfig(graph_type=experiment["graph_type"], governor_type=experiment["governor_type"])
-    #         runner.before_experiment()
-    #         runner.before_run()
-    #         runner.start_run(context=None)
-    #         runner.interact(context=None)
-    #         runner.stop_run(context=None)
-    #         print(f"Finished experiment with {experiment['graph_type']} and {experiment['governor_type']}\n")
+        pass
 
     # ================================ DO NOT ALTER BELOW THIS LINE ================================
     experiment_path:            Path             = None
