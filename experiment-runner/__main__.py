@@ -60,7 +60,9 @@ if __name__ == "__main__":
             config_file = load_and_get_config_file_as_module(sys.argv)
 
             if hasattr(config_file, 'RunnerConfig'):
-                config = config_file.RunnerConfig()                         # Instantiate config from injected file
+                # argv[2] - governor
+                # argv[3] - low/medium/high workload as 0/1/2
+                config = config_file.RunnerConfig(sys.argv[2], sys.argv[3])                         # Instantiate config from injected file
                 metadata = Metadata(
                     calc_ast_md5sum(pickle.source.getsource(config_file), sys.argv[1])  # hash of the whole file, not just RunnerConfig
                 )

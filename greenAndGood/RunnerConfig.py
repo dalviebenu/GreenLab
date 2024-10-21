@@ -1,4 +1,5 @@
 import shlex
+import string
 import subprocess
 import time
 
@@ -10,6 +11,7 @@ from ConfigValidator.Config.Models.RunnerContext import RunnerContext
 from ConfigValidator.Config.Models.OperationType import OperationType
 from ExtendedTyping.Typing import SupportsStr
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
+import argparse
 
 from typing import Dict, Optional
 from pathlib import Path
@@ -24,7 +26,7 @@ class RunnerConfig:
 
     # ================================ USER SPECIFIC CONFIG ================================
     """The name of the experiment."""
-    name:                       str             = "new_runner_experiment11"
+    # name:                       str             = "new_runner_experiment16" #TODO change this
 
     """The path in which Experiment Runner will create a folder with the name `self.name`, in order to store the
     results from this experiment. (Path does not need to exist - it will be created if necessary.)
@@ -40,8 +42,25 @@ class RunnerConfig:
 
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     # e.g. Setting some variable based on some criteria
-    def __init__(self):
+    def __init__(self, governor_type: str, workload_type: str):
         """Executes immediately after program start, on config load"""
+        """Initializes the RunnerConfig with graph_type and governor_type"""
+        # parser = argparse.ArgumentParser(description="A simple script to demonstrate CLI arguments.")
+        # parser.add_argument("--graph_type", type=str, required=True, help="Specify the graph type")
+        # parser.add_argument("--governor_type", type=str, required=True, help="Specify the governor type")
+        #
+        # # Use parse_known_args to ignore unrecognized arguments
+        # args, unknown = parser.parse_known_args()
+
+        # self.graph_type = args.graph_type
+        # self.governor_type = args.governor_type
+
+        self.governor_type = governor_type
+        self.workload_type = int (workload_type)
+        self.name = f"experiment_{time.strftime('%Y%m%d_%H%M%S')}"  # Generate name based on the current time
+        print(f"Experiment name: {self.name}")
+        print(f"Governor type: {self.governor_type}")
+        print(f"Workload type: {self.workload_type}")
 
         EventSubscriptionController.subscribe_to_multiple_events([
             (RunnerEvents.BEFORE_EXPERIMENT, self.before_experiment),
@@ -56,6 +75,7 @@ class RunnerConfig:
         ])
         self.run_table_model = None  # Initialized later
 
+        print("RunnerConfig initialized")
         output.console_log("RunnerConfig initialized")
 
     def create_run_table_model(self) -> RunTableModel:
@@ -81,8 +101,8 @@ class RunnerConfig:
             # ]
             data_columns=[
                     'cpu_usage',             # CPU usage percentage
-                    'total_power'           # Total Power
-                    # 'workload_type'          # What type of workload is the network under
+                    'total_power',            # Total Power
+                    'governor'               # CPU governor type
                 ]
         )
 
@@ -91,24 +111,36 @@ class RunnerConfig:
     def before_experiment(self) -> None:
         """Perform any activity required before starting the experiment here
         Invoked only once during the lifetime of the program."""
-
-        pass
+    pass
+        # Initialize the social graph
+    #     self.initialize_social_graph()  # You can pass other graph names like 'ego-twitter' or 'soc-twitter-follows-mun'
+    #
+    #
+    # def initialize_social_graph(self) -> None:
+    #     """Run the command to initialize the social graph with the provided graph_type."""
+    #     graph_command = f"python3 scripts/init_social_graph.py --graph={self.graph_type}"
+    #     output.console_log(f"Initializing social graph with {self.graph_type}")
+    #
+    #     try:
+    #         subprocess.check_call(shlex.split(graph_command), cwd="/home/teambest/DeathStarBench/socialNetwork")
+    #         output.console_log(f"Successfully initialized social graph: {self.graph_type}")
+    #     except subprocess.CalledProcessError as e:
+    #         output.console_log(f"Failed to initialize social graph {self.graph_type}: {e}")
 
     def before_run(self) -> None:
-        """Perform any activity required before starting a run.
-        No context is available here as the run is not yet active (BEFORE RUN)"""
+        """Change CPU governor and initialize the social graph dynamically before starting the run."""
 
         # Change CPU governor
         governor_command = (
-            "sshpass -p 'greenandgood' ssh teambest@145.108.225.16 "
-            "'echo \"ondemand\" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor'"
+            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 "
+            f"'echo \"{self.governor_type}\" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor'"
         )
 
-        # Run the command using subprocess
+        # Execute the governor command
         try:
-            output.console_log("Changing CPU governor to schedutil")
+            output.console_log(f"Changing CPU governor to {self.governor_type}")
             subprocess.check_call(governor_command, shell=True)
-            output.console_log("Governor successfully changed to schedutil")
+            output.console_log(f"Governor successfully changed to {self.governor_type}")
 
             # Adding a small sleep to ensure governor change is applied
             time.sleep(2)
@@ -149,14 +181,34 @@ class RunnerConfig:
     def interact(self, context: RunnerContext) -> None:
         """Perform any interaction with the running target system here, or block here until the target finishes."""
 
+        experiments = [
+            {
+                "threads": 100,
+                "connections": 1000,
+                "observation": "± 35% LOW"
+            },
+            {
+                "threads": 100,
+                "connections": 5000,
+                "observation": "high variance, but a bunch of values at around 50%"
+            },
+            {
+                "threads": 100,
+                "connections": 10000,
+                "observation": "± 90% HIGH"
+            }
+        ]
+
         # Define the working directory and the wrk command
         wrk_command = (
             "sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 "
             "\'cd DeathStarBench/socialNetwork/ && "
-            "../wrk2/wrk -D exp -t 24 -c 800 -d 60 -L "
+            f"../wrk2/wrk -D exp -t 100 -c {experiments[self.workload_type]["connections"]} -d 30 -L "
             "-s ./wrk2/scripts/social-network/compose-post.lua "
             "http://145.108.225.16:8080/wrk2-api/post/compose -R 10\'"
-        )
+        ) #TODO: change time to the needed value - 120 s
+
+        print("comanda de workload type:", wrk_command)
 
         # Run the wrk2 command, changing the working directory to /home/teambest/DeathStarBench/socialNetwork
         wrk_process = subprocess.Popen(
@@ -177,8 +229,8 @@ class RunnerConfig:
             output.console_log(f"wrk2 command failed with return code {wrk_process.returncode}")
             print(stderr.decode())  # Print the error output if the command fails
 
-        output.console_log("Running program for 65 seconds")
-        time.sleep(65)
+        output.console_log("Running program for 35 seconds") #TODO: change sleep time to the needed value
+        time.sleep(35) #TODO: change sleep time to the needed value
 
     def stop_measurement(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping measurements."""
@@ -193,8 +245,6 @@ class RunnerConfig:
         scp_command = (
             f"sshpass -p 'greenandgood' scp teambest@145.108.225.16:/home/teambest/powerjoular_remote2.csv {context.run_dir}"
         )
-
-        print("scp_command: " + scp_command)
 
         # Run the scp command to copy the file locally
         subprocess.check_call(shlex.split(scp_command))
@@ -219,7 +269,9 @@ class RunnerConfig:
             # Calculate the total CPU utilization and total power consumption
             run_data = {
                 'cpu_usage': round(df['CPU Utilization'].mean(), 3),
-                'total_power': round(df['Total Power'].sum(), 3)
+                'total_power': round(df['Total Power'].sum(), 3),
+                'governor': self.governor_type
+                # 'workload_type': self.graph_type
             }
 
             return run_data
@@ -232,6 +284,27 @@ class RunnerConfig:
         """Perform any activity required after stopping the experiment here
         Invoked only once during the lifetime of the program."""
         pass
+
+    # def run_multiple_experiments():
+    #     # Define the combinations of graph_type and governor_type
+    #     experiments = [
+    #         {"graph_type": "socfb-Reed98", "governor_type": "ondemand"},
+    #         {"graph_type": "socfb-Reed98", "governor_type": "powersave"},
+    #         {"graph_type": "socfb-Reed98", "governor_type": "schedutil"}
+    #         # {"graph_type": "soc-twitter", "governor_type": "performance"},
+    #         # {"graph_type": "soc-twitter", "governor_type": "powersave"},
+    #     ]
+    #
+    #     # Iterate over each experiment and execute the runner config
+    #     for experiment in experiments:
+    #         print(f"\nStarting experiment with {experiment['graph_type']} and {experiment['governor_type']}")
+    #         runner = RunnerConfig(graph_type=experiment["graph_type"], governor_type=experiment["governor_type"])
+    #         runner.before_experiment()
+    #         runner.before_run()
+    #         runner.start_run(context=None)
+    #         runner.interact(context=None)
+    #         runner.stop_run(context=None)
+    #         print(f"Finished experiment with {experiment['graph_type']} and {experiment['governor_type']}\n")
 
     # ================================ DO NOT ALTER BELOW THIS LINE ================================
     experiment_path:            Path             = None
