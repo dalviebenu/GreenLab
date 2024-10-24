@@ -8,6 +8,8 @@ import time
 from os.path import dirname, realpath
 from pathlib import Path
 from typing import Dict, Optional
+import numpy as np
+import csv
 
 import pandas as pd
 from ConfigValidator.Config.Models.FactorModel import FactorModel
@@ -121,7 +123,8 @@ class RunnerConfig:
                 'workload_type',
                 'execution_time (seconds)',  # Execution time for the run, in seconds
                 'cpu_usage',  # CPU usage percentage
-                'total_power'  # Total Power
+                'total_power',  # Total Power
+                'average_CPU_frequency'  # Average CPU frequency during the run
             ]
         )
 
@@ -181,6 +184,7 @@ class RunnerConfig:
             f"'echo \"{self.governor_type}\" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor'"
         )
 
+
         # Execute the governor command
         try:
             output.console_log(f"Changing CPU governor to {self.governor_type}")
@@ -191,6 +195,19 @@ class RunnerConfig:
             time.sleep(2)
         except subprocess.CalledProcessError as e:
             output.console_log(f"Failed to change CPU governor: {e}")
+
+            # Start monitoring CPU usage with the sar command
+        sar_command = (
+            'sshpass -p "greenandgood" ssh teambest@145.108.225.16 '
+            '\'sar -m CPU 3 80 >> sar_output.txt\''
+        )
+
+        try:
+            output.console_log("Starting CPU monitoring with 'sar'")
+            subprocess.Popen(sar_command, shell=True)
+            output.console_log("CPU monitoring started successfully.")
+        except subprocess.CalledProcessError as e:
+            output.console_log(f"Failed to start CPU monitoring: {e}")
 
         # Start the main task or system interaction after changing the governor
         self.target = subprocess.Popen(
@@ -254,13 +271,13 @@ class RunnerConfig:
         wrk_command = (
             f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 "
             f"\'cd DeathStarBench/socialNetwork/ && "
-            f"../wrk2/wrk -D exp -t 100 -c {experiments[self.workload_type]["connections"]} -d 120 -L "
+            f"../wrk2/wrk -D exp -t 100 -c {experiments[self.workload_type]['connections']} -d 60 -L "
             "-s ./wrk2/scripts/social-network/compose-post.lua "
             f"http://145.108.225.16:8080/wrk2-api/post/compose -R 10\'"
 
         )  # TODO: change time to the needed value - 120 s
 
-        print("comanda de workload type:", wrk_command)
+        print("command workload type:", wrk_command)
 
         # Run the wrk2 command, changing the working directory to /home/teambest/DeathStarBench/socialNetwork
         wrk_process = subprocess.Popen(
@@ -280,8 +297,8 @@ class RunnerConfig:
             output.console_log(f"wrk2 command failed with return code {wrk_process.returncode}")
             print(stderr.decode())  # Print the error output if the command fails
 
-        output.console_log("Running program for 90 seconds")  # TODO: change sleep time to the needed value
-        time.sleep(90)  # TODO: change sleep time to the needed value
+        output.console_log("Running program for 10 seconds")  # TODO: change sleep time to the needed value
+        time.sleep(10)  # TODO: change sleep time to the needed value
 
     def stop_measurement(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping measurements."""
@@ -297,8 +314,13 @@ class RunnerConfig:
             f"sshpass -p 'greenandgood' scp teambest@145.108.225.16:/home/teambest/powerjoular_remote2.csv {context.run_dir}"
         )
 
+        scp_command_sar = (
+            f"sshpass -p 'greenandgood' scp teambest@145.108.225.16:/home/teambest/sar_output.txt {context.run_dir}"
+        )
+
         # Run the scp command to copy the file locally
         subprocess.check_call(shlex.split(scp_command))
+        subprocess.check_call(shlex.split(scp_command_sar))
 
     def stop_run(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping the run.
@@ -316,8 +338,8 @@ class RunnerConfig:
         self.target.wait()
 
         # Introduce a cooldown period of 30 seconds between runs
-        print("Cooldown period: waiting for 30 seconds before the next run...")
-        time.sleep(30)  # Cooldown period
+        print("Cooldown period: waiting for 10 seconds before the next run...")
+        time.sleep(10)  # Cooldown period
 
         print("Cooldown complete. Proceeding to the next run.")
 
@@ -335,8 +357,63 @@ class RunnerConfig:
 
         # To account for cases where more lines than 5 are introduced by powerjoular when saving the table
         try:
+
+            # Read the sar output file
+            with open(context.run_dir / 'sar_output.txt', 'r') as file:
+                lines = file.readlines()
+
+                # Filter out unnecessary lines
+            data_lines = [line.strip() for line in lines if
+                          line.strip() and not line.startswith("Linux") and not line.startswith("Average")]
+
+            # Parse the data into a list of dictionaries
+            data = []
+            for line in data_lines:
+                parts = line.split()
+
+                # Ensure proper parsing of time and frequency
+                # Check if the line has at least 3 parts (time, 'all', frequency)
+                if len(parts) >= 3 and parts[2] == 'all':
+                    time = f"{parts[0]} {parts[1]}"  # Combine time and AM/PM
+                    freq = parts[-1]  # Use the last part, which should be the frequency
+                    try:
+                        freq = int(float(freq))  # Convert to float first, then to int for proper parsing
+                        data.append({"Time": time, "CPU Frequency (MHz)": freq})
+                    except ValueError:
+                        print(f"Warning: Could not convert frequency to int for line: {line}")
+                        continue
+
+
+            df_sar = pd.DataFrame(data)
+
+
+            # Write the parsed data to a CSV file
+            output_file = 'cpu_frequencies.csv'
+            with open(output_file, 'w', newline='') as csvfile:
+                fieldnames = ["Time", "CPU Frequency (MHz)"]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+                writer.writeheader()
+                writer.writerows(data)
+
+            print(f"CSV file '{output_file}' created successfully.")
+
+
             # Load the CSV file while ignoring bad lines
-            df = pd.read_csv(context.run_dir / 'powerjoular_remote2.csv', on_bad_lines='skip')
+            df = pd.read_csv(context.run_dir / 'powerjoular_remote2.csv', on_bad_lines='skip', nrows=100000)
+
+            # Calculate the total power consumption using the trapezoidal rule
+            df['Total Power'] = pd.to_numeric(df['Total Power'], errors='coerce')
+
+            # Replace infinite values with NaN
+            df['Total Power'].replace([np.inf, -np.inf], np.nan, inplace=True)
+
+            # Fill NaN values (choose one method)
+            df['Total Power'].fillna(0, inplace=True)  # Option 1: Fill with zeros
+            # df['Total Power'].interpolate(inplace=True)  # Option 2: Interpolate missing values
+
+            # Compute total_power
+            total_power = np.trapz(df['Total Power'], dx=1)
 
             # Calculate the total CPU utilization and total power consumption
             run_data = {
@@ -345,7 +422,8 @@ class RunnerConfig:
                 # Map workload type to human-readable labels
                 'execution_time (seconds)': round(self.end_time - self.start_time, 3),
                 'cpu_usage': round(df['CPU Utilization'].mean(), 3),
-                'total_power': round(df['Total Power'].sum(), 3)
+                'total_power':  round(df['Total Power'].mean(), 3),
+                'average_CPU_frequency': round(df_sar['CPU Frequency (MHz)'].mean(), 3)
             }
 
             return run_data
