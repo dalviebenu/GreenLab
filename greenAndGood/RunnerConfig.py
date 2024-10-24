@@ -42,8 +42,6 @@ class RunnerConfig:
     time_between_runs_in_ms: int = 1000
 
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
-    # e.g. Setting some variable based on some criteria
-    # def __init__(self, governor_type: str, workload_type: str, network_type: str):
     def __init__(self):
         """Executes immediately after program start, on config load"""
         """Initializes the RunnerConfig with graph_type and governor_type"""
@@ -63,11 +61,6 @@ class RunnerConfig:
         # Initialize dynamic values for each run
         self.governor_type = None
         self.workload_type = None
-        # self.network_type = None
-
-        # self.governor_type = governor_type
-        # self.workload_type = int (workload_type)
-        # self.network_type = network_type
 
         self.name = f"experiment_{time.strftime('%Y%m%d_%H%M%S')}"  # Generate an experiment name based on the current time
         self.start_time = None  # Initialize start_time
@@ -101,23 +94,13 @@ class RunnerConfig:
         # Extract unique values from combinations
         governor_type_values = list(set([g for g, _ in self.experiment_combinations]))
         workload_type_values = list(set([w for _, w in self.experiment_combinations]))
-        # network_type_values = list(set([n for _, _, n in self.experiment_combinations]))
 
         # Create the factor models ensuring no duplicates
         governor_type_factor = FactorModel('governor_type', governor_type_values)
         workload_type_factor = FactorModel('workload_type', workload_type_values)
-        # network_type_factor = FactorModel('network_type', network_type_values)
 
-        # Create factors with the shuffled combinations
-        # network_type = FactorModel("network_type", ["socfb-Reed98", "ego-twitter", "soc-twitter-follows-mun"])
         self.run_table_model = RunTableModel(
             factors=[governor_type_factor, workload_type_factor],
-            # data_columns=[
-            #     'run_number',            # Sequential number for the run
-            #     'cpu_usage',             # CPU usage percentage
-            #     'memory_usage',          # Memory usage in MB or percentage
-            #     'energy_usage',          # Total energy consumption (e.g., in joules)
-            #     'average_CPU_frequency', # Average CPU frequency during the run
             data_columns=[
                 'governor_type',
                 'workload_type',
@@ -140,29 +123,6 @@ class RunnerConfig:
             self.combination_index += 1
         else:
             print("All combinations have been executed.")
-
-        # Initialize the social graph with the correct network type
-        # self.initialize_social_graph()
-
-    # def initialize_social_graph(self) -> None:
-    #     """Command to initialize the social graph with the provided network_type."""
-    #
-    #     if self.network_type is None:
-    #         output.console_log(f"Network type not set, cannot initialize social graph.")
-    #         return
-    #
-    #     graph_command = (
-    #         f'sshpass -p "greenandgood" ssh teambest@145.108.225.16 '
-    #         f'"cd DeathStarBench/socialNetwork/ && '
-    #         f'python3 scripts/init_social_graph.py --graph={self.network_type}"'
-    #     )
-    #     output.console_log(f"Initializing social graph with {self.network_type}")
-    #
-    #     try:
-    #         subprocess.check_call(shlex.split(graph_command), cwd=self.ROOT_DIR)
-    #         output.console_log(f"Successfully initialized social graph: {self.network_type}")
-    #     except subprocess.CalledProcessError as e:
-    #         output.console_log(f"Failed to initialize social graph {self.network_type}: {e}")
 
     def before_run(self) -> None:
         """Change CPU governor and initialize the social graph dynamically before starting the run."""
@@ -275,7 +235,7 @@ class RunnerConfig:
             "-s ./wrk2/scripts/social-network/compose-post.lua "
             f"http://145.108.225.16:8080/wrk2-api/post/compose -R 10\'"
 
-        )  # TODO: change time to the needed value - 120 s
+        )
 
         print("command workload type:", wrk_command)
 
@@ -297,8 +257,8 @@ class RunnerConfig:
             output.console_log(f"wrk2 command failed with return code {wrk_process.returncode}")
             print(stderr.decode())  # Print the error output if the command fails
 
-        output.console_log("Running program for 10 seconds")  # TODO: change sleep time to the needed value
-        time.sleep(10)  # TODO: change sleep time to the needed value
+        output.console_log("Running program for 10 seconds")
+        time.sleep(10)
 
     def stop_measurement(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping measurements."""
@@ -400,7 +360,7 @@ class RunnerConfig:
 
 
             # Load the CSV file while ignoring bad lines
-            df = pd.read_csv(context.run_dir / 'powerjoular_remote2.csv', on_bad_lines='skip', nrows=100000)
+            df = pd.read_csv(context.run_dir / 'powerjoular_remote2.csv', on_bad_lines='skip')
 
             # Calculate the total power consumption using the trapezoidal rule
             df['Total Power'] = pd.to_numeric(df['Total Power'], errors='coerce')
