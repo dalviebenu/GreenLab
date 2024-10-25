@@ -1,0 +1,19 @@
+__run_id,__done,governor_type,workload_type,execution_time (seconds),cpu_usage,total_power,average_CPU_frequency
+run_0_repetition_0,DONE,schedutil,low,371.096,0.083,-0.879,1422.402
+run_1_repetition_0,DONE,conservative,low,372.012,0.084,-0.773,1428.203
+run_2_repetition_0,DONE,powersave,high,377.662,0.085,-0.687,1420.625
+run_3_repetition_0,DONE,powersave,medium,376.045,0.086,-0.625,1413.229
+run_4_repetition_0,DONE,conservative,high,378.146,0.088,-0.549,1418.259
+run_5_repetition_0,DONE,ondemand,high,375.801,0.089,-0.448,1424.768
+run_6_repetition_0,DONE,powersave,low,379.909,0.09,-0.358,1417.578
+run_7_repetition_0,DONE,ondemand,low,375.289,0.091,-0.286,1422.38
+run_8_repetition_0,DONE,userspace,high,380.113,0.092,-0.184,1435.651
+run_9_repetition_0,DONE,ondemand,medium,381.851,0.092,-0.085,1441.154
+run_10_repetition_0,DONE,userspace,medium,382.767,0.094,0.022,1452.546
+run_11_repetition_0,DONE,performance,medium,385.607,0.095,0.128,1466.709
+run_12_repetition_0,DONE,userspace,low,385.077,0.095,0.224,1481.268
+run_13_repetition_0,DONE,schedutil,medium,394.62,0.096,0.319,1486.317
+run_14_repetition_0,TODO, , , , , , 
+run_15_repetition_0,TODO, , , , , , 
+run_16_repetition_0,TODO, , , , , , 
+run_17_repetition_0,TODO, , , , , , 
