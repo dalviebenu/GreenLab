@@ -116,11 +116,16 @@ class RunnerConfig:
     def before_experiment(self) -> None:
         """Perform any activity required before starting the experiment"""
 
+        print("Experiment combinations:")
+        for idx, (gov, workload) in enumerate(self.experiment_combinations):
+            print(f"{idx}: Governor = {gov}, Workload = {workload}")
+
+
         # Ensure the next experiment combination is selected
         if self.combination_index < len(self.experiment_combinations):
             self.governor_type, self.workload_type = self.experiment_combinations[self.combination_index]
             print(f"Selected combination - Governor: {self.governor_type}, Workload: {self.workload_type}")
-            self.combination_index += 1
+            # self.combination_index += 1
         else:
             print("All combinations have been executed.")
 
@@ -128,6 +133,18 @@ class RunnerConfig:
         """Change CPU governor and initialize the social graph dynamically before starting the run."""
 
         """Select the next combination of governor_type, workload_type, and network_type"""
+        # Delete the sar_output.txt file on the remote server if it exists
+        delete_sar_command = (
+            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 'rm -f /home/teambest/sar_output.txt'"
+        )
+        try:
+            output.console_log("Deleting sar_output.txt before starting the run")
+            subprocess.check_call(shlex.split(delete_sar_command))
+            output.console_log("sar_output.txt deleted successfully.")
+        except subprocess.CalledProcessError as e:
+            output.console_log(f"Failed to delete sar_output.txt: {e}")
+
+
         if self.combination_index < len(self.experiment_combinations):
             # Get the next combination
             self.governor_type, self.workload_type = self.experiment_combinations[self.combination_index]
@@ -143,7 +160,6 @@ class RunnerConfig:
             f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 "
             f"'echo \"{self.governor_type}\" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor'"
         )
-
 
         # Execute the governor command
         try:
