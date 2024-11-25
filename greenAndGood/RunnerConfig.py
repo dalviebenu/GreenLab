@@ -106,7 +106,7 @@ class RunnerConfig:
                 'workload_type',
                 'execution_time (seconds)',  # Execution time for the run, in seconds
                 'cpu_usage',  # CPU usage percentage
-                'total_power',  # Total Power
+                'energy',  # Energy
                 'average_CPU_frequency'  # Average CPU frequency during the run
             ]
         )
@@ -156,10 +156,10 @@ class RunnerConfig:
         except subprocess.CalledProcessError as e:
             output.console_log(f"Failed to change CPU governor: {e}")
 
-            # Start monitoring CPU usage with the sar command
+        # Start monitoring CPU usage with the sar command
         sar_command = (
             'sshpass -p "greenandgood" ssh teambest@145.108.225.16 '
-            '\'sar -m CPU 3 80 >> sar_output.txt\''
+            '\'sar -m CPU 5 12 >> sar_output.txt\''
         )
 
         try:
@@ -184,12 +184,12 @@ class RunnerConfig:
         self.start_time = time.time()  # Record the start time
         print(f"Run started at: {self.start_time}")
 
-        self.target = subprocess.Popen(
-            ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
-            )
+        # self.target = subprocess.Popen(
+        #     ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
+        #     stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
+        #     )
 
-        # self.target = self.target.stdout.read()
+
         print(self.target)
 
     def start_measurement(self, context: RunnerContext) -> None:
@@ -197,11 +197,17 @@ class RunnerConfig:
 
         # Define the SSH command
         ssh_command = (
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -f powerjoular_remote2.csv'"
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -f powerjoular_output.csv'" #TODO: check how this works 2: also use paramiko
         )
 
         time.sleep(1)  # allow the process to run a little before measuring
         self.profiler = subprocess.Popen(shlex.split(ssh_command))
+
+        # Delete existing powerjoular_output.csv file on the remote server
+        delete_command = (
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'rm -f powerjoular_output.csv'"
+        )
+        subprocess.call(shlex.split(delete_command))
 
     def interact(self, context: RunnerContext) -> None:
         """Perform any interaction with the running target system here, or block here until the target finishes."""
@@ -233,7 +239,7 @@ class RunnerConfig:
             f"\'cd DeathStarBench/socialNetwork/ && "
             f"../wrk2/wrk -D exp -t 100 -c {experiments[self.workload_type]['connections']} -d 60 -L "
             "-s ./wrk2/scripts/social-network/compose-post.lua "
-            f"http://145.108.225.16:8080/wrk2-api/post/compose -R 10\'"
+            f"http://145.108.225.16:8080/wrk2-api/post/compose -R 2\'"
 
         )
 
@@ -257,8 +263,8 @@ class RunnerConfig:
             output.console_log(f"wrk2 command failed with return code {wrk_process.returncode}")
             print(stderr.decode())  # Print the error output if the command fails
 
-        output.console_log("Running program for 10 seconds")
-        time.sleep(10)
+        # output.console_log("Running program for 10 seconds")
+        # time.sleep(10)
 
     def stop_measurement(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping measurements."""
@@ -271,7 +277,7 @@ class RunnerConfig:
 
         # Copy the file from the remote server to the local machine using scp
         scp_command = (
-            f"sshpass -p 'greenandgood' scp teambest@145.108.225.16:/home/teambest/powerjoular_remote2.csv {context.run_dir}"
+            f"sshpass -p 'greenandgood' scp teambest@145.108.225.16:/home/teambest/powerjoular_output.csv {context.run_dir}"
         )
 
         scp_command_sar = (
@@ -281,6 +287,18 @@ class RunnerConfig:
         # Run the scp command to copy the file locally
         subprocess.check_call(shlex.split(scp_command))
         subprocess.check_call(shlex.split(scp_command_sar))
+
+        # Delete the powerjoular_output.csv file on the remote server
+        delete_command = (
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'rm -f powerjoular_output.csv'"
+        )
+        subprocess.call(shlex.split(delete_command))
+
+        # Delete the sar_output.txt file on the remote server
+        delete_sar_command = (
+            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 'rm -f sar_output.txt'"
+        )
+        subprocess.call(shlex.split(delete_sar_command))
 
     def stop_run(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping the run.
@@ -299,7 +317,7 @@ class RunnerConfig:
 
         # Introduce a cooldown period of 30 seconds between runs
         print("Cooldown period: waiting for 10 seconds before the next run...")
-        time.sleep(10)  # Cooldown period
+        time.sleep(5)  # Cooldown period
 
         print("Cooldown complete. Proceeding to the next run.")
 
@@ -360,17 +378,23 @@ class RunnerConfig:
 
 
             # Load the CSV file while ignoring bad lines
-            df = pd.read_csv(context.run_dir / 'powerjoular_remote2.csv', on_bad_lines='skip')
+            df = pd.read_csv(context.run_dir / 'powerjoular_output.csv', on_bad_lines='skip')
 
-            # Calculate the total power consumption using the trapezoidal rule
-            df['Total Power'] = pd.to_numeric(df['Total Power'], errors='coerce')
+            # # Calculate the total power consumption using the trapezoidal rule
+            # df['Total Power'] = pd.to_numeric(df['Total Power'], errors='coerce')
+
+
+            # Ensure 'CPU Utilization' column is numeric
+            df['CPU Utilization'] = pd.to_numeric(df['CPU Utilization'], errors='coerce')
 
             # Replace infinite values with NaN
-            df['Total Power'].replace([np.inf, -np.inf], np.nan, inplace=True)
+            df['CPU Utilization'].replace([np.inf, -np.inf], np.nan, inplace=True)
 
-            # Fill NaN values (choose one method)
-            df['Total Power'].fillna(0, inplace=True)  # Option 1: Fill with zeros
-            # df['Total Power'].interpolate(inplace=True)  # Option 2: Interpolate missing values
+            # # Fill NaN values
+            # df['CPU Utilization'].fillna(0, inplace=True)
+
+            # Compute average CPU utilization
+            average_cpu_usage = df['CPU Utilization'].mean() * 100
 
             # Compute total_power
             total_power = np.trapz(df['Total Power'], dx=1)
@@ -381,8 +405,8 @@ class RunnerConfig:
                 'workload_type': workload_type_mapping[self.workload_type],
                 # Map workload type to human-readable labels
                 'execution_time (seconds)': round(self.end_time - self.start_time, 3),
-                'cpu_usage': round(df['CPU Utilization'].mean(), 3),
-                'total_power':  round(df['Total Power'].mean(), 3),
+                'cpu_usage': round(average_cpu_usage, 2),  # Expressed as percentage
+                'energy':  round(total_power, 3), #should be instantaneous, use energy consumption
                 'average_CPU_frequency': round(df_sar['CPU Frequency (MHz)'].mean(), 3)
             }
 
