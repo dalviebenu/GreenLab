@@ -394,10 +394,10 @@ class RunnerConfig:
 
 
             # Load the CSV file while ignoring bad lines
-            df = pd.read_csv(context.run_dir / 'powerjoular_remote2.csv', on_bad_lines='skip')
+            df = pd.read_csv(context.run_dir / 'powerjoular_output.csv', on_bad_lines='skip')
 
             # Extract the time and total power columns from the DataFrame
-            time_stamps = pd.to_numeric(df['Time'], errors='coerce')
+            time_stamps = pd.to_numeric(df['Date'], errors='coerce')
             total_power = pd.to_numeric(df['Total Power'], errors='coerce')
 
             # Ensure 'CPU Utilization' column is numeric
