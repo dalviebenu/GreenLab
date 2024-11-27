@@ -173,7 +173,7 @@ class RunnerConfig:
         self.target = subprocess.Popen(
             ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
-        )
+        ) # Don't think this is needed ??
 
     def start_run(self, context: RunnerContext) -> None:
         """Perform any activity required for starting the run here.
@@ -187,7 +187,7 @@ class RunnerConfig:
         self.target = subprocess.Popen(
             ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
-            )
+            ) # Also this ?
 
         # self.target = self.target.stdout.read()
         print(self.target)
@@ -195,9 +195,9 @@ class RunnerConfig:
     def start_measurement(self, context: RunnerContext) -> None:
         """Perform any activity required for starting measurements."""
 
-        # Define the SSH command
+        # Run powerjoular in the background for 60 seconds
         ssh_command = (
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -f powerjoular_remote2.csv'"
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S timeout 60s powerjoular -f powerjoular_remote2.csv'"
         )
 
         time.sleep(1)  # allow the process to run a little before measuring
@@ -362,18 +362,20 @@ class RunnerConfig:
             # Load the CSV file while ignoring bad lines
             df = pd.read_csv(context.run_dir / 'powerjoular_remote2.csv', on_bad_lines='skip')
 
-            # Calculate the total power consumption using the trapezoidal rule
-            df['Total Power'] = pd.to_numeric(df['Total Power'], errors='coerce')
+            # Extract the time and total power columns from the DataFrame
+            time_stamps = pd.to_numeric(df['Time'], errors='coerce')
+            total_power = pd.to_numeric(df['Total Power'], errors='coerce')
 
             # Replace infinite values with NaN
-            df['Total Power'].replace([np.inf, -np.inf], np.nan, inplace=True)
+            time_stamps.replace([np.inf, -np.inf], np.nan, inplace=True)
+            total_power.replace([np.inf, -np.inf], np.nan, inplace=True)
 
-            # Fill NaN values (choose one method)
-            df['Total Power'].fillna(0, inplace=True)  # Option 1: Fill with zeros
-            # df['Total Power'].interpolate(inplace=True)  # Option 2: Interpolate missing values
+            # Fill NaN values
+            time_stamps.fillna(method='ffill', inplace=True)
+            total_power.fillna(0, inplace=True)
 
-            # Compute total_power
-            total_power = np.trapz(df['Total Power'], dx=1)
+            # Calculate the total power consumption using the trapezoidal rule with time stamps
+            total_power_consumption = np.trapz(total_power, x=time_stamps)
 
             # Calculate the total CPU utilization and total power consumption
             run_data = {
@@ -382,7 +384,7 @@ class RunnerConfig:
                 # Map workload type to human-readable labels
                 'execution_time (seconds)': round(self.end_time - self.start_time, 3),
                 'cpu_usage': round(df['CPU Utilization'].mean(), 3),
-                'total_power':  round(df['Total Power'].mean(), 3),
+                'total_power':  round(total_power_consumption, 3),
                 'average_CPU_frequency': round(df_sar['CPU Frequency (MHz)'].mean(), 3)
             }
 
