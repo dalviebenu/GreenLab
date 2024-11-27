@@ -397,28 +397,25 @@ class RunnerConfig:
             df = pd.read_csv(context.run_dir / 'powerjoular_output.csv', on_bad_lines='skip')
 
             # Extract the time and total power columns from the DataFrame
-            time_stamps = pd.to_numeric(df['Date'], errors='coerce')
-            total_power = pd.to_numeric(df['Total Power'], errors='coerce')
+            df['Date'] = pd.to_datetime(df['Date'])
+            time_seconds = (df['Date'] - df['Date'].iloc[0]).dt.total_seconds()
 
-            # Ensure 'CPU Utilization' column is numeric
+            total_power = pd.to_numeric(df['Total Power'], errors='coerce')
             df['CPU Utilization'] = pd.to_numeric(df['CPU Utilization'], errors='coerce')
 
             # Replace infinite values with NaN
-            time_stamps.replace([np.inf, -np.inf], np.nan, inplace=True)
             total_power.replace([np.inf, -np.inf], np.nan, inplace=True)
             df['CPU Utilization'].replace([np.inf, -np.inf], np.nan, inplace=True)
 
             # Fill NaN values
-            time_stamps.fillna(method='ffill', inplace=True)
             total_power.fillna(0, inplace=True)
-            # # Fill NaN values
-            # df['CPU Utilization'].fillna(0, inplace=True)
+            df['CPU Utilization'].fillna(0, inplace=True)
 
             # Compute average CPU utilization
             average_cpu_usage = df['CPU Utilization'].mean() * 100
 
             # Calculate the total power consumption using the trapezoidal rule with time stamps
-            total_power_consumption = np.trapz(total_power, x=time_stamps)
+            total_power_consumption = np.trapz(total_power, x=time_seconds)
 
             # Calculate the total CPU utilization and total power consumption
             run_data = {
