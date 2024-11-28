@@ -39,7 +39,7 @@ class RunnerConfig:
 
     """The time Experiment Runner will wait after a run completes.
     This can be essential to accommodate for cooldown periods on some systems."""
-    time_between_runs_in_ms: int = 1000
+    time_between_runs_in_ms: int = 1500
 
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     def __init__(self):
@@ -47,13 +47,16 @@ class RunnerConfig:
         """Initializes the RunnerConfig with graph_type and governor_type"""
 
         self.governor_types = ["schedutil", "performance", "powersave", "userspace", "ondemand", "conservative"]
+        # self.governor_types = ["performance", "ondemand"]
         self.workload_types = [0, 1, 2]
+        # self.workload_types = [0, 1]
 
         # Generate all combinations
         self.experiment_combinations = list(itertools.product(self.governor_types, self.workload_types))
+        print(f"experiment combinations: {self.experiment_combinations}")
 
         # Shuffle the combinations to randomize execution order
-        random.shuffle(self.experiment_combinations)
+        # random.shuffle(self.experiment_combinations)
 
         # Initialize index for tracking combinations
         self.combination_index = 0
@@ -101,14 +104,15 @@ class RunnerConfig:
 
         self.run_table_model = RunTableModel(
             factors=[governor_type_factor, workload_type_factor],
-            repetitions=10,
+            repetitions=6,
+            shuffle=True,
             data_columns=[
                 'governor_type',
                 'workload_type',
                 'execution_time (seconds)',  # Execution time for the run, in seconds
-                'cpu_usage',  # CPU usage percentage
-                'energy',  # Energy
-                'average_CPU_frequency'  # Average CPU frequency during the run
+                'energy (Joules)',  # Energy
+                'cpu_usage (%)',  # CPU usage percentage
+                'average_CPU_frequency (MHz)'  # Average CPU frequency during the run
             ]
         )
 
@@ -117,21 +121,26 @@ class RunnerConfig:
     def before_experiment(self) -> None:
         """Perform any activity required before starting the experiment"""
 
+        # print("Shuffling experiment combinations for this experiment.")
+        # random.shuffle(self.experiment_combinations)  # Shuffle again for each experiment
+
+        # self.combination_index = 0  # Reset combination index
         print("Experiment combinations:")
         for idx, (gov, workload) in enumerate(self.experiment_combinations):
             print(f"{idx}: Governor = {gov}, Workload = {workload}")
 
 
-        # Ensure the next experiment combination is selected
-        if self.combination_index < len(self.experiment_combinations):
-            self.governor_type, self.workload_type = self.experiment_combinations[self.combination_index]
-            print(f"Selected combination - Governor: {self.governor_type}, Workload: {self.workload_type}")
-            # self.combination_index += 1
-        else:
-            print("All combinations have been executed.")
+        # # Ensure the next experiment combination is selected
+        # if self.combination_index < len(self.experiment_combinations):
+        #     self.governor_type, self.workload_type = self.experiment_combinations[self.combination_index]
+        #     print(f"Selected combination - Governor: {self.governor_type}, Workload: {self.workload_type}")
+        #     self.combination_index += 1
+        # else:
+        #     print("All combinations have been executed.")
 
     def before_run(self) -> None:
         """Change CPU governor and initialize the social graph dynamically before starting the run."""
+        # self.combination_index = 0  # Reset combination index
 
         """Select the next combination of governor_type, workload_type, and network_type"""
         # Delete the sar_output.txt file on the remote server if it exists
@@ -145,7 +154,6 @@ class RunnerConfig:
         except subprocess.CalledProcessError as e:
             output.console_log(f"Failed to delete sar_output.txt: {e}")
 
-
         if self.combination_index < len(self.experiment_combinations):
             # Get the next combination
             self.governor_type, self.workload_type = self.experiment_combinations[self.combination_index]
@@ -154,7 +162,8 @@ class RunnerConfig:
             # Increment the combination index for the next run
             self.combination_index += 1
         else:
-            print("All experiment combinations have been executed.")
+            print("All experiment combinations have been executed. Restarting combinations.")
+            # self.combination_index = 0  # Reset for further repetitions
 
         # Change CPU governor
         governor_command = (
@@ -176,7 +185,7 @@ class RunnerConfig:
         # Start monitoring CPU usage with the sar command
         sar_command = (
             'sshpass -p "greenandgood" ssh teambest@145.108.225.16 '
-            '\'sar -m CPU 5 12 >> sar_output.txt\''
+            '\'sar -m CPU 5 13 >> sar_output.txt\''
         )
 
         try:
@@ -200,12 +209,6 @@ class RunnerConfig:
         """Record the start time when the run begins."""
         self.start_time = time.time()  # Record the start time
         print(f"Run started at: {self.start_time}")
-
-        # self.target = subprocess.Popen(
-        #     ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
-        #     stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
-        #     )
-
 
         print(self.target)
 
@@ -333,8 +336,8 @@ class RunnerConfig:
         self.target.wait()
 
         # Introduce a cooldown period of 30 seconds between runs
-        print("Cooldown period: waiting for 10 seconds before the next run...")
-        time.sleep(5)  # Cooldown period
+        # print("Cooldown period: waiting for 10 seconds before the next run...")
+        # time.sleep(5)  # Cooldown period
 
         print("Cooldown complete. Proceeding to the next run.")
 
@@ -357,7 +360,7 @@ class RunnerConfig:
             with open(context.run_dir / 'sar_output.txt', 'r') as file:
                 lines = file.readlines()
 
-                # Filter out unnecessary lines
+            # Filter out unnecessary lines
             data_lines = [line.strip() for line in lines if
                           line.strip() and not line.startswith("Linux") and not line.startswith("Average")]
 
@@ -397,24 +400,43 @@ class RunnerConfig:
             # Load the CSV file while ignoring bad lines
             df = pd.read_csv(context.run_dir / 'powerjoular_output.csv', on_bad_lines='skip')
 
-            # Extract the time and total power columns from the DataFrame
-            df['Date'] = pd.to_datetime(df['Date'], errors='coerce')  # Convert to datetime, handle errors
-            df = df.dropna(subset=['Date'])  # Drop rows where 'Date' could not be parsed
+            # Check if 'Date' column exists
+            if 'Date' in df.columns:
+                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')  # Convert to datetime, handle errors
+                df = df.dropna(subset=['Date'])  # Drop rows where 'Date' could not be parsed
+                df = df.sort_values(by='Date')  # Sort for consistent time processing
+            else:
+                print("Error: 'Date' column not found in the CSV file")
+                return None
 
-            # Ensure 'Date' is sorted for correct time calculation
-            df = df.sort_values(by='Date')
+            # Ensure DataFrame is not empty
+            if df.empty:
+                print("Error: The DataFrame is empty")
+                return None
+
+            # Extract the time and total power columns
             time_seconds = (df['Date'] - df['Date'].iloc[0]).dt.total_seconds()
+            total_power = pd.to_numeric(df['Total Power'], errors='coerce').fillna(0)
+            df['CPU Utilization'] = pd.to_numeric(df['CPU Utilization'], errors='coerce').fillna(0)
 
-            total_power = pd.to_numeric(df['Total Power'], errors='coerce')
-            df['CPU Utilization'] = pd.to_numeric(df['CPU Utilization'], errors='coerce')
+            # # Extract the time and total power columns from the DataFrame
+            # df['Date'] = pd.to_datetime(df['Date'], errors='coerce')  # Convert to datetime, handle errors
+            # df = df.dropna(subset=['Date'])  # Drop rows where 'Date' could not be parsed
+            #
+            # # Ensure 'Date' is sorted for correct time calculation
+            # df = df.sort_values(by='Date')
+            # time_seconds = (df['Date'] - df['Date'].iloc[0]).dt.total_seconds()
 
-            # Replace infinite values with NaN
-            total_power.replace([np.inf, -np.inf], np.nan, inplace=True)
-            df['CPU Utilization'].replace([np.inf, -np.inf], np.nan, inplace=True)
+            # total_power = pd.to_numeric(df['Total Power'], errors='coerce')
+            # df['CPU Utilization'] = pd.to_numeric(df['CPU Utilization'], errors='coerce')
 
-            # Fill NaN values
-            total_power.fillna(0, inplace=True)
-            df['CPU Utilization'].fillna(0, inplace=True)
+            # # Replace infinite values with NaN
+            # total_power.replace([np.inf, -np.inf], np.nan, inplace=True)
+            # df['CPU Utilization'].replace([np.inf, -np.inf], np.nan, inplace=True)
+            #
+            # # Fill NaN values
+            # total_power.fillna(0, inplace=True)
+            # df['CPU Utilization'].fillna(0, inplace=True)
 
             # Compute average CPU utilization
             average_cpu_usage = df['CPU Utilization'].mean() * 100
@@ -428,9 +450,9 @@ class RunnerConfig:
                 'workload_type': workload_type_mapping[self.workload_type],
                 # Map workload type to human-readable labels
                 'execution_time (seconds)': round(self.end_time - self.start_time, 3),
-                'energy':  round(total_power_consumption, 3),
-                'cpu_usage': round(average_cpu_usage, 2),  # Expressed as percentage
-                'average_CPU_frequency': round(df_sar['CPU Frequency (MHz)'].mean(), 3)
+                'energy (Joules)':  round(total_power_consumption, 3),
+                'cpu_usage (%)': round(average_cpu_usage, 2),  # Expressed as percentage
+                'average_CPU_frequency (MHz)': round(df_sar['CPU Frequency (MHz)'].mean(), 3)
             }
 
             return run_data
@@ -442,7 +464,7 @@ class RunnerConfig:
     def after_experiment(self) -> None:
         """Perform any activity required after stopping the experiment here.
         Invoked only once during the lifetime of the program."""
-
+        # self.combination_index += 1
         pass
 
     # ================================ DO NOT ALTER BELOW THIS LINE ================================
