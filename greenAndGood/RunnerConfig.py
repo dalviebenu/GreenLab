@@ -101,6 +101,7 @@ class RunnerConfig:
 
         self.run_table_model = RunTableModel(
             factors=[governor_type_factor, workload_type_factor],
+            repetitions=10,
             data_columns=[
                 'governor_type',
                 'workload_type',
@@ -397,7 +398,11 @@ class RunnerConfig:
             df = pd.read_csv(context.run_dir / 'powerjoular_output.csv', on_bad_lines='skip')
 
             # Extract the time and total power columns from the DataFrame
-            df['Date'] = pd.to_datetime(df['Date'])
+            df['Date'] = pd.to_datetime(df['Date'], errors='coerce')  # Convert to datetime, handle errors
+            df = df.dropna(subset=['Date'])  # Drop rows where 'Date' could not be parsed
+
+            # Ensure 'Date' is sorted for correct time calculation
+            df = df.sort_values(by='Date')
             time_seconds = (df['Date'] - df['Date'].iloc[0]).dt.total_seconds()
 
             total_power = pd.to_numeric(df['Total Power'], errors='coerce')
