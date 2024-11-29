@@ -39,7 +39,7 @@ class RunnerConfig:
 
     """The time Experiment Runner will wait after a run completes.
     This can be essential to accommodate for cooldown periods on some systems."""
-    time_between_runs_in_ms: int = 1500
+    time_between_runs_in_ms: int = 10000 #TODO: change this cooldown time : L(10), M(20), H(30)
 
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     def __init__(self):
@@ -145,7 +145,7 @@ class RunnerConfig:
         """Select the next combination of governor_type, workload_type, and network_type"""
         # Delete the sar_output.txt file on the remote server if it exists
         delete_sar_command = (
-            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 'rm -f /home/teambest/sar_output.txt'"
+            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.14 'rm -f /home/teambest/sar_output.txt'"
         )
         try:
             output.console_log("Deleting sar_output.txt before starting the run")
@@ -167,7 +167,7 @@ class RunnerConfig:
 
         # Change CPU governor
         governor_command = (
-            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 "
+            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.14 "
             f"'echo \"{self.governor_type}\" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor'"
         )
 
@@ -184,7 +184,7 @@ class RunnerConfig:
 
         # Start monitoring CPU usage with the sar command
         sar_command = (
-            'sshpass -p "greenandgood" ssh teambest@145.108.225.16 '
+            'sshpass -p "greenandgood" ssh teambest@145.108.225.14 '
             '\'sar -m CPU 5 13 >> sar_output.txt\''
         )
 
@@ -197,7 +197,7 @@ class RunnerConfig:
 
         # Start the main task or system interaction after changing the governor
         self.target = subprocess.Popen(
-            ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
+            ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.14', 'sleep 60 & echo $!'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
         ) # Don't think this is needed ??
 
@@ -217,7 +217,7 @@ class RunnerConfig:
 
         # Define the SSH command
         ssh_command = (
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -f powerjoular_output.csv'" #TODO: check how this works 2: also use paramiko
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.14 'sudo -S powerjoular -f powerjoular_output.csv'" #TODO: check how this works 2: also use paramiko
         )
 
         time.sleep(1)  # allow the process to run a little before measuring
@@ -225,7 +225,7 @@ class RunnerConfig:
 
         # Delete existing powerjoular_output.csv file on the remote server
         delete_command = (
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'rm -f powerjoular_output.csv'"
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.14 'rm -f powerjoular_output.csv'"
         )
         subprocess.call(shlex.split(delete_command))
 
@@ -255,11 +255,11 @@ class RunnerConfig:
 
         # Define the working directory and the wrk command
         wrk_command = (
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 "
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.14 "
             f"\'cd DeathStarBench/socialNetwork/ && "
-            f"../wrk2/wrk -D exp -t 100 -c {experiments[self.workload_type]['connections']} -d 60 -L "
+            f"../wrk2/wrk -D exp -t 100 -c {experiments[self.workload_type]['connections']} -d 60 -L " #TODO: adjust time of experiments here: L(30), M(60), H(120)
             "-s ./wrk2/scripts/social-network/compose-post.lua "
-            f"http://145.108.225.16:8080/wrk2-api/post/compose -R 2\'"
+            f"http://145.108.225.14:8080/wrk2-api/post/compose -R 2\'"
 
         )
 
@@ -297,11 +297,11 @@ class RunnerConfig:
 
         # Copy the file from the remote server to the local machine using scp
         scp_command = (
-            f"sshpass -p 'greenandgood' scp teambest@145.108.225.16:/home/teambest/powerjoular_output.csv {context.run_dir}"
+            f"sshpass -p 'greenandgood' scp teambest@145.108.225.14:/home/teambest/powerjoular_output.csv {context.run_dir}"
         )
 
         scp_command_sar = (
-            f"sshpass -p 'greenandgood' scp teambest@145.108.225.16:/home/teambest/sar_output.txt {context.run_dir}"
+            f"sshpass -p 'greenandgood' scp teambest@145.108.225.14:/home/teambest/sar_output.txt {context.run_dir}"
         )
 
         # Run the scp command to copy the file locally
@@ -310,13 +310,13 @@ class RunnerConfig:
 
         # Delete the powerjoular_output.csv file on the remote server
         delete_command = (
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'rm -f powerjoular_output.csv'"
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.14 'rm -f powerjoular_output.csv'"
         )
         subprocess.call(shlex.split(delete_command))
 
         # Delete the sar_output.txt file on the remote server
         delete_sar_command = (
-            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 'rm -f sar_output.txt'"
+            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.14 'rm -f sar_output.txt'"
         )
         subprocess.call(shlex.split(delete_sar_command))
 
