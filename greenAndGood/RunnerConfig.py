@@ -39,7 +39,7 @@ class RunnerConfig:
 
     """The time Experiment Runner will wait after a run completes.
     This can be essential to accommodate for cooldown periods on some systems."""
-    time_between_runs_in_ms: int = 10000 #TODO: change this cooldown time : L(10), M(20), H(30)
+    time_between_runs_in_ms: int = 20000  # TODO: change this cooldown time : L(10000), M(20000), H(30000)
 
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     def __init__(self):
@@ -47,12 +47,11 @@ class RunnerConfig:
         """Initializes the RunnerConfig with graph_type and governor_type"""
 
         self.governor_types = ["schedutil", "performance", "powersave", "userspace", "ondemand", "conservative"]
-        # self.governor_types = ["performance", "ondemand"]
+        # self.governor_types = ["powersave"] #TODO: use this for baseline experiment data recording
         self.workload_types = [0, 1, 2]
-        # self.workload_types = [0, 1]
 
         # Generate all combinations
-        self.experiment_combinations = list(itertools.product(self.governor_types, self.workload_types))
+        self.experiment_combinations = list(itertools.product(self.governor_types, self.workload_types)) * 10
         print(f"experiment combinations: {self.experiment_combinations}")
 
         # Shuffle the combinations to randomize execution order
@@ -104,7 +103,7 @@ class RunnerConfig:
 
         self.run_table_model = RunTableModel(
             factors=[governor_type_factor, workload_type_factor],
-            repetitions=6,
+            repetitions=10,
             shuffle=True,
             data_columns=[
                 'governor_type',
@@ -121,22 +120,9 @@ class RunnerConfig:
     def before_experiment(self) -> None:
         """Perform any activity required before starting the experiment"""
 
-        # print("Shuffling experiment combinations for this experiment.")
-        # random.shuffle(self.experiment_combinations)  # Shuffle again for each experiment
-
-        # self.combination_index = 0  # Reset combination index
         print("Experiment combinations:")
         for idx, (gov, workload) in enumerate(self.experiment_combinations):
             print(f"{idx}: Governor = {gov}, Workload = {workload}")
-
-
-        # # Ensure the next experiment combination is selected
-        # if self.combination_index < len(self.experiment_combinations):
-        #     self.governor_type, self.workload_type = self.experiment_combinations[self.combination_index]
-        #     print(f"Selected combination - Governor: {self.governor_type}, Workload: {self.workload_type}")
-        #     self.combination_index += 1
-        # else:
-        #     print("All combinations have been executed.")
 
     def before_run(self) -> None:
         """Change CPU governor and initialize the social graph dynamically before starting the run."""
@@ -145,7 +131,7 @@ class RunnerConfig:
         """Select the next combination of governor_type, workload_type, and network_type"""
         # Delete the sar_output.txt file on the remote server if it exists
         delete_sar_command = (
-            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.14 'rm -f /home/teambest/sar_output.txt'"
+            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 'rm -f /home/teambest/sar_output.txt'"
         )
         try:
             output.console_log("Deleting sar_output.txt before starting the run")
@@ -163,11 +149,10 @@ class RunnerConfig:
             self.combination_index += 1
         else:
             print("All experiment combinations have been executed. Restarting combinations.")
-            # self.combination_index = 0  # Reset for further repetitions
 
         # Change CPU governor
         governor_command = (
-            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.14 "
+            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 "
             f"'echo \"{self.governor_type}\" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor'"
         )
 
@@ -184,7 +169,7 @@ class RunnerConfig:
 
         # Start monitoring CPU usage with the sar command
         sar_command = (
-            'sshpass -p "greenandgood" ssh teambest@145.108.225.14 '
+            'sshpass -p "greenandgood" ssh teambest@145.108.225.16 '
             '\'sar -m CPU 5 13 >> sar_output.txt\''
         )
 
@@ -197,9 +182,9 @@ class RunnerConfig:
 
         # Start the main task or system interaction after changing the governor
         self.target = subprocess.Popen(
-            ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.14', 'sleep 60 & echo $!'],
+            ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
-        ) # Don't think this is needed ??
+        )  # Don't think this is needed ??
 
     def start_run(self, context: RunnerContext) -> None:
         """Perform any activity required for starting the run here.
@@ -217,7 +202,7 @@ class RunnerConfig:
 
         # Define the SSH command
         ssh_command = (
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.14 'sudo -S powerjoular -f powerjoular_output.csv'" #TODO: check how this works 2: also use paramiko
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'sudo -S powerjoular -f powerjoular_output.csv'"
         )
 
         time.sleep(1)  # allow the process to run a little before measuring
@@ -225,7 +210,7 @@ class RunnerConfig:
 
         # Delete existing powerjoular_output.csv file on the remote server
         delete_command = (
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.14 'rm -f powerjoular_output.csv'"
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'rm -f powerjoular_output.csv'"
         )
         subprocess.call(shlex.split(delete_command))
 
@@ -255,11 +240,11 @@ class RunnerConfig:
 
         # Define the working directory and the wrk command
         wrk_command = (
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.14 "
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 "
             f"\'cd DeathStarBench/socialNetwork/ && "
-            f"../wrk2/wrk -D exp -t 100 -c {experiments[self.workload_type]['connections']} -d 60 -L " #TODO: adjust time of experiments here: L(30), M(60), H(120)
+            f"../wrk2/wrk -D exp -t 100 -c {experiments[self.workload_type]['connections']} -d 60 -L "  # TODO: adjust time of experiments here: L(30), M(60), H(120)
             "-s ./wrk2/scripts/social-network/compose-post.lua "
-            f"http://145.108.225.14:8080/wrk2-api/post/compose -R 2\'"
+            f"http://145.108.225.16:8080/wrk2-api/post/compose -R 2\'"
 
         )
 
@@ -283,9 +268,6 @@ class RunnerConfig:
             output.console_log(f"wrk2 command failed with return code {wrk_process.returncode}")
             print(stderr.decode())  # Print the error output if the command fails
 
-        # output.console_log("Running program for 10 seconds")
-        # time.sleep(10)
-
     def stop_measurement(self, context: RunnerContext) -> None:
         """Perform any activity here required for stopping measurements."""
 
@@ -297,11 +279,11 @@ class RunnerConfig:
 
         # Copy the file from the remote server to the local machine using scp
         scp_command = (
-            f"sshpass -p 'greenandgood' scp teambest@145.108.225.14:/home/teambest/powerjoular_output.csv {context.run_dir}"
+            f"sshpass -p 'greenandgood' scp teambest@145.108.225.16:/home/teambest/powerjoular_output.csv {context.run_dir}"
         )
 
         scp_command_sar = (
-            f"sshpass -p 'greenandgood' scp teambest@145.108.225.14:/home/teambest/sar_output.txt {context.run_dir}"
+            f"sshpass -p 'greenandgood' scp teambest@145.108.225.16:/home/teambest/sar_output.txt {context.run_dir}"
         )
 
         # Run the scp command to copy the file locally
@@ -310,13 +292,13 @@ class RunnerConfig:
 
         # Delete the powerjoular_output.csv file on the remote server
         delete_command = (
-            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.14 'rm -f powerjoular_output.csv'"
+            f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 'rm -f powerjoular_output.csv'"
         )
         subprocess.call(shlex.split(delete_command))
 
         # Delete the sar_output.txt file on the remote server
         delete_sar_command = (
-            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.14 'rm -f sar_output.txt'"
+            f"sshpass -p 'greenandgood' ssh teambest@145.108.225.16 'rm -f sar_output.txt'"
         )
         subprocess.call(shlex.split(delete_sar_command))
 
@@ -334,10 +316,6 @@ class RunnerConfig:
 
         self.target.kill()
         self.target.wait()
-
-        # Introduce a cooldown period of 30 seconds between runs
-        # print("Cooldown period: waiting for 10 seconds before the next run...")
-        # time.sleep(5)  # Cooldown period
 
         print("Cooldown complete. Proceeding to the next run.")
 
@@ -381,9 +359,7 @@ class RunnerConfig:
                         print(f"Warning: Could not convert frequency to int for line: {line}")
                         continue
 
-
             df_sar = pd.DataFrame(data)
-
 
             # Write the parsed data to a CSV file
             output_file = 'cpu_frequencies.csv'
@@ -395,7 +371,6 @@ class RunnerConfig:
                 writer.writerows(data)
 
             print(f"CSV file '{output_file}' created successfully.")
-
 
             # Load the CSV file while ignoring bad lines
             df = pd.read_csv(context.run_dir / 'powerjoular_output.csv', on_bad_lines='skip')
@@ -419,25 +394,6 @@ class RunnerConfig:
             total_power = pd.to_numeric(df['Total Power'], errors='coerce').fillna(0)
             df['CPU Utilization'] = pd.to_numeric(df['CPU Utilization'], errors='coerce').fillna(0)
 
-            # # Extract the time and total power columns from the DataFrame
-            # df['Date'] = pd.to_datetime(df['Date'], errors='coerce')  # Convert to datetime, handle errors
-            # df = df.dropna(subset=['Date'])  # Drop rows where 'Date' could not be parsed
-            #
-            # # Ensure 'Date' is sorted for correct time calculation
-            # df = df.sort_values(by='Date')
-            # time_seconds = (df['Date'] - df['Date'].iloc[0]).dt.total_seconds()
-
-            # total_power = pd.to_numeric(df['Total Power'], errors='coerce')
-            # df['CPU Utilization'] = pd.to_numeric(df['CPU Utilization'], errors='coerce')
-
-            # # Replace infinite values with NaN
-            # total_power.replace([np.inf, -np.inf], np.nan, inplace=True)
-            # df['CPU Utilization'].replace([np.inf, -np.inf], np.nan, inplace=True)
-            #
-            # # Fill NaN values
-            # total_power.fillna(0, inplace=True)
-            # df['CPU Utilization'].fillna(0, inplace=True)
-
             # Compute average CPU utilization
             average_cpu_usage = df['CPU Utilization'].mean() * 100
 
@@ -450,7 +406,7 @@ class RunnerConfig:
                 'workload_type': workload_type_mapping[self.workload_type],
                 # Map workload type to human-readable labels
                 'execution_time (seconds)': round(self.end_time - self.start_time, 3),
-                'energy (Joules)':  round(total_power_consumption, 3),
+                'energy (Joules)': round(total_power_consumption, 3),
                 'cpu_usage (%)': round(average_cpu_usage, 2),  # Expressed as percentage
                 'average_CPU_frequency (MHz)': round(df_sar['CPU Frequency (MHz)'].mean(), 3)
             }
@@ -464,7 +420,6 @@ class RunnerConfig:
     def after_experiment(self) -> None:
         """Perform any activity required after stopping the experiment here.
         Invoked only once during the lifetime of the program."""
-        # self.combination_index += 1
         pass
 
     # ================================ DO NOT ALTER BELOW THIS LINE ================================
