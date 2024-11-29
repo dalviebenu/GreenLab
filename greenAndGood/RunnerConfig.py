@@ -184,7 +184,7 @@ class RunnerConfig:
         self.target = subprocess.Popen(
             ['sshpass', '-p', '\"greenandgood\"', 'ssh', 'teambest@145.108.225.16', 'sleep 60 & echo $!'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.ROOT_DIR, shell=True
-        )  # Don't think this is needed ??
+        )
 
     def start_run(self, context: RunnerContext) -> None:
         """Perform any activity required for starting the run here.
