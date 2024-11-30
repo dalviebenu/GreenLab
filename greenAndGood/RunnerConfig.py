@@ -170,7 +170,7 @@ class RunnerConfig:
         # Start monitoring CPU usage with the sar command
         sar_command = (
             'sshpass -p "greenandgood" ssh teambest@145.108.225.16 '
-            '\'sar -m CPU 5 13 >> sar_output.txt\''
+            '\'sar -m CPU 5 13 >> sar_output.txt\'' #TODO: increase the 13 to 25 for the high workload
         )
 
         try:
