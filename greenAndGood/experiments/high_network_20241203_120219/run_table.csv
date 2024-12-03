@@ -177,5 +177,5 @@ run_12_repetition_0,DONE,ondemand,low,139.487,5880.047,43.56,1706.84
 run_11_repetition_6,DONE,ondemand,medium,132.295,8114.219,91.55,2450.76
 run_11_repetition_3,DONE,ondemand,high,134.759,8185.891,97.52,2492.32
 run_5_repetition_7,DONE,conservative,low,135.788,6319.938,56.76,1843.52
-run_10_repetition_0,DONE,conservative,medium,139.217,7856.758,86.02 ,2078.76
-run_6_repetition_9,TODO, , , , , ,
+run_10_repetition_0,DONE,conservative,medium,139.217,7856.758,86.02,2078.76
+run_6_repetition_9,DONE,conservative,high,143.074,8190.297,94.18,2218.61
