@@ -39,7 +39,7 @@ class RunnerConfig:
 
     """The time Experiment Runner will wait after a run completes.
     This can be essential to accommodate for cooldown periods on some systems."""
-    time_between_runs_in_ms: int = 20000  # TODO: change this cooldown time : L(10000), M(20000), H(30000)
+    time_between_runs_in_ms: int = 30000  # TODO: change this cooldown time : L(10000), M(20000), H(30000)
 
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     def __init__(self):
@@ -47,7 +47,6 @@ class RunnerConfig:
         """Initializes the RunnerConfig with graph_type and governor_type"""
 
         self.governor_types = ["schedutil", "performance", "powersave", "userspace", "ondemand", "conservative"]
-        # self.governor_types = ["powersave"] #TODO: use this for baseline experiment data recording
         self.workload_types = [0, 1, 2]
 
         # Generate all combinations
@@ -170,7 +169,7 @@ class RunnerConfig:
         # Start monitoring CPU usage with the sar command
         sar_command = (
             'sshpass -p "greenandgood" ssh teambest@145.108.225.16 '
-            '\'sar -m CPU 5 13 >> sar_output.txt\'' #TODO: increase the 13 to 25 for the high workload
+            '\'sar -m CPU 5 25 >> sar_output.txt\'' #TODO: increase the 13 to 25 for the high workload
         )
 
         try:
@@ -242,7 +241,7 @@ class RunnerConfig:
         wrk_command = (
             f"sshpass -p \"greenandgood\" ssh teambest@145.108.225.16 "
             f"\'cd DeathStarBench/socialNetwork/ && "
-            f"../wrk2/wrk -D exp -t 100 -c {experiments[self.workload_type]['connections']} -d 60 -L "  # TODO: adjust time of experiments here: L(30), M(60), H(120)
+            f"../wrk2/wrk -D exp -t 100 -c {experiments[self.workload_type]['connections']} -d 120 -L "  # TODO: adjust time of experiments here: L(30), M(60), H(120)
             "-s ./wrk2/scripts/social-network/compose-post.lua "
             f"http://145.108.225.16:8080/wrk2-api/post/compose -R 2\'"
 
