@@ -1,4 +1,4 @@
-# R Script for Preprocessing and Plotting
+# Combined R Script for Preprocessing and Plotting
 
 # Load required libraries
 library(dplyr)
@@ -6,69 +6,27 @@ library(ggplot2)
 library(tidyr)
 
 # ========================= Preprocessing the Run Table =========================
-clean_run_table <- function(run_table_path) {
+clean_run_table <- function(run_table_data_path) {
   # Read the CSV file
-  run_table <- read.csv(run_table_path, stringsAsFactors = FALSE)
-  
+  run_table <- read.csv(run_table_data_path, stringsAsFactors = FALSE)
+
   # Remove any white spaces from governor and workload types
   run_table <- run_table %>% 
     mutate(
       governor_type = trimws(governor_type),
       workload_type = trimws(workload_type)
     )
-  
+
   # Ensure only valid governor types (6 unique values)
   valid_governors <- c("conservative", "ondemand", "performance", "powersave", "schedutil", "userspace")
   run_table <- run_table %>% filter(governor_type %in% valid_governors)
-  
+
   # Ensure only valid workload types (3 unique values: low, medium, high)
   valid_workloads <- c("low", "medium", "high")
   run_table <- run_table %>% filter(workload_type %in% valid_workloads)
-  
+
   # Return the cleaned run table
   return(run_table)
-}
-
-# ========================= Preprocessing the Power Data =========================
-clean_power_data <- function(power_data_paths) {
-  # Initialize an empty list to hold cleaned data
-  cleaned_data_list <- list()
-  
-  # Iterate over all file paths
-  for (file_path in power_data_paths) {
-    # Read the CSV file
-    power_data <- read.csv(file_path, stringsAsFactors = FALSE)
-    
-    # Convert Date column to POSIXct format
-    power_data$Date <- as.POSIXct(power_data$Date, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
-    
-    # Remove rows with invalid or missing timestamps
-    power_data <- power_data %>% filter(!is.na(Date))
-    
-    # Coerce columns to appropriate types
-    power_data$CPU.Power <- as.numeric(power_data$CPU.Power) # Convert CPU.Power to numeric
-    power_data$GPU.Power <- as.numeric(power_data$GPU.Power) # Convert GPU.Power to numeric
-    
-    # Calculate duration from the start of each repetition
-    power_data <- power_data %>% mutate(Duration = as.numeric(difftime(Date, min(Date), units = "secs")))
-    
-    # Remove rows with negative or invalid Total Power
-    power_data <- power_data %>% filter(Total.Power >= 0)
-    
-    # Add governor and workload information from the file name
-    file_info <- strsplit(basename(file_path), " - ")[[1]]
-    power_data$Governor <- trimws(file_info[1])
-    power_data$Workload <- trimws(gsub(".csv", "", file_info[2]))
-    
-    # Append the cleaned data to the list
-    cleaned_data_list[[length(cleaned_data_list) + 1]] <- power_data
-  }
-  
-  # Combine all cleaned data into a single data frame
-  combined_data <- bind_rows(cleaned_data_list)
-  
-  # Return the combined cleaned data
-  return(combined_data)
 }
 
 # ========================= Plotting Functions =========================
@@ -83,7 +41,11 @@ plot_power_trends <- function(cleaned_data, title) {
       linetype = "Workload"
     ) +
     theme_minimal() +
-    theme(legend.position = "right")
+    theme(
+      panel.background = element_rect(fill = "white"),
+      plot.background = element_rect(fill = "white"),
+      legend.position = "right"
+    )
 }
 
 plot_cpu_trends <- function(cleaned_data, title) {
@@ -97,51 +59,72 @@ plot_cpu_trends <- function(cleaned_data, title) {
       linetype = "Workload"
     ) +
     theme_minimal() +
-    theme(legend.position = "right")
+    theme(
+      panel.background = element_rect(fill = "white"),
+      plot.background = element_rect(fill = "white"),
+      legend.position = "right"
+    )
 }
 
+# Accurate Energy Consumption Bar Chart
 plot_energy_consumption <- function(cleaned_data, title) {
   energy_summary <- cleaned_data %>%
-    group_by(Governor, Workload) %>%
-    summarise(Average_Energy = mean(Total.Power, na.rm = TRUE))
-  
-  ggplot(energy_summary, aes(x = Governor, y = Average_Energy, fill = Workload)) +
-    geom_bar(stat = "identity", position = "dodge") +
+    group_by(governor_type, workload_type) %>%
+    summarise(Average_Energy = mean(energy..Joules., na.rm = TRUE))
+
+  ggplot(energy_summary, aes(x = governor_type, y = Average_Energy, fill = workload_type)) +
+    geom_bar(stat = "identity", position = position_dodge(width = 0.8)) +
+    geom_text(aes(label = round(Average_Energy, 1)), 
+              position = position_dodge(width = 0.8), 
+              vjust = -0.5, size = 3) +
     labs(
       title = title,
       x = "Governor",
-      y = "Average Energy Consumption (Watts)",
-      fill = "Workload"
+      y = "Average Energy Consumption (Joules)",
+      fill = "Workload Type"
     ) +
-    theme_minimal() +
-    theme(legend.position = "right")
+    theme_minimal(base_size = 14) +
+    theme(
+      panel.background = element_rect(fill = "white"),
+      plot.background = element_rect(fill = "white", color = NA),
+      legend.position = "right",
+      plot.title = element_text(hjust = 0.5, size = 16)
+    )
 }
 
 # ========================= Main Script =========================
-# Paths to the run table and power data
-run_table_path <- "run_table - low.csv"
-power_data_dir <- "low network/"
-power_data_paths <- list.files(power_data_dir, pattern = "*.csv", full.names = TRUE)
+# Paths to the cleaned power data and run table data
+cleaned_power_data_path <- "cleaned_power_data.csv"  # Path to your cleaned power data
+run_table_data_path <- "run_table - low.csv" # Path to your run table data
 
-# Clean the run table
-cleaned_run_table <- clean_run_table(run_table_path)
+# Load the cleaned power data directly
+all_power_data <- read.csv(cleaned_power_data_path, stringsAsFactors = FALSE)
 
-# Clean and combine all power data
-all_power_data <- clean_power_data(power_data_paths)
+# Load the run table data
+run_table_data <- read.csv(run_table_data_path, stringsAsFactors = FALSE)
+
+# Clean the run table data
+run_table_data <- clean_run_table(run_table_data_path)
 
 # Generate Power Trend Plot
-power_plot <- plot_power_trends(all_power_data, "Power Consumption Over Experiment Duration")
+power_plot <- plot_power_trends(all_power_data, "Power Consumption Over Experiment Duration") +
+  theme(text = element_text(size = 14),  # Increase text size
+        plot.title = element_text(hjust = 0.5, size = 16),  # Center title and increase size
+        legend.position = "right")  # Position legend to the right
 print(power_plot)
 
 # Generate CPU Utilization Trend Plot
-cpu_plot <- plot_cpu_trends(all_power_data, "CPU Utilization Over Experiment Duration")
+cpu_plot <- plot_cpu_trends(all_power_data, "CPU Utilization Over Experiment Duration") +
+  theme(text = element_text(size = 14),  # Increase text size
+        plot.title = element_text(hjust = 0.5, size = 16),  # Center title and increase size
+        legend.position = "right")  # Position legend to the right
 print(cpu_plot)
 
-# Generate Energy Consumption Plot
-energy_plot <- plot_energy_consumption(all_power_data, "Average Energy Consumption by Governor and Workload")
+# Generate Energy Consumption Bar Chart
+energy_plot <- plot_energy_consumption(run_table_data, "Average Energy Consumption by Governor and Workload")
 print(energy_plot)
 
-# Save plots if needed
-ggsave("power_trends.png", power_plot, width = 12, height = 8)
-ggsave("cpu_trends.png", cpu_plot, width = 12, height = 8)
-ggsave("energy_consumption.png", energy_plot, width = 12, height = 8)
+# Save plots with improved dimensions for visibility
+ggsave("power_trends.png", power_plot, width = 14, height = 10)
+ggsave("cpu_trends.png", cpu_plot, width = 14, height = 10)
+ggsave("energy_consumption.png", energy_plot, width = 14, height = 10, dpi = 300)
