@@ -1,5 +1,6 @@
 import pandas as pd
 from scipy.integrate import trapezoid
+import os
 
 def clean_and_calculate_energy(file_path):
     """
@@ -13,7 +14,7 @@ def clean_and_calculate_energy(file_path):
     """
     try:
         # Step 1: Load the data, ignoring bad lines
-        data = pd.read_csv(file_path, error_bad_lines=False, warn_bad_lines=True)
+        data = pd.read_csv(file_path, on_bad_lines='skip')
 
         # Step 2: Clean the 'Date' column
         data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
@@ -28,7 +29,7 @@ def clean_and_calculate_energy(file_path):
         if 'Total Power' not in data.columns:
             raise ValueError("The required 'Total Power' column is missing in the dataset.")
         
-        data = data[data['Total Power'] >= 0]
+        data = data[(data['Total Power'] >= 0) & (data['Total Power'] < 70)]
 
         # Step 4: Calculate energy using the trapezoid rule
         if len(data) < 2:
@@ -47,6 +48,9 @@ def clean_and_calculate_energy(file_path):
         return None
 
 
-file_path = "path_to_power_output.csv"
+file_path = "run_15_repetition_4/powerjoular_output.csv"
 energy = clean_and_calculate_energy(file_path)
 print(f"Calculated Energy: {energy} Joules")
+
+current_directory = os.getcwd()
+print(f"Current Working Directory: {current_directory}")
