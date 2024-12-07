@@ -18,7 +18,6 @@ python3 -m venv venv
 ```
 To activate the virtual environment on Macbook:
 
-- Macbook:
 ```bash
 source venv/bin/activate
 ```
