@@ -38,7 +38,7 @@ To start the run of the experiment, this command should be used (tested on Macbo
 python3 experiment-runner/ greenAndGood/RunnerConfig.py
 ```
 
-The results of the experiment will be stored in the [greenAndGood/experiments](`greenAndGood/experiments`) directory.
+The results of the experiment will be stored in the [greenAndGood/experiments](greenAndGood/experiments) directory.
 
 ### Data Analysis
 For performing statistical tests on the data generated from the experiment follow the instructions provided in [Data Analysis](data-analysis/README.md)
