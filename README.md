@@ -28,9 +28,33 @@ After creating the virtual environment, run:
 pip install -r requirements.txt
 ```
 
+## Server-Side actions
+```bash
+git clone https://github.com/delimitrou/DeathStarBench/tree/master
+cd DeathStarBench/socialNetwork
+```
+
+Start the social netwrok by running:
+```bash
+docker-compose up -d
+```
+
+On the server side it is needed to initialize the Social Network. The following command needs to be run for registering the users and constructing the social graphs
+```bash
+python3 scripts/init_social_graph.py --graph=<socfb-Reed98, ego-twitter, or soc-twitter-follows-mun>
+```
+where the appropriate network should be used, according to the case: small, medium, large.
+
+It is necessary to build the workload generator tool:
+```bash
+cd ../wrk2
+# Compile
+make
+```
+
 ## Running the project
 
-In this section, we assume as the current working directory, the root directory of the project.
+In this section, we assume as the current working directory, the root directory of the project. This part is run on the laptop side, not the server side.
 
 To start the run of the experiment, this command should be used (tested on Macbook):
 
