@@ -49,14 +49,14 @@ The Python script cleans and combines the 18 unique CSV files into a single file
 
 ---
 
-## Step 3: Generate Plots Using the R Script
+## Step 3: Generate Plots and Statistical Analysis Using the R Scripts
 
-The R script processes the combined CSV file and generates three types of plots:
+There are two R scripts. The first processes the combined CSV file and generates three types of plots:
 - **Power Trends**: Visualizing power consumption over time.
 - **CPU Utilization Trends**: Showing CPU utilization over time.
 - **Energy Consumption Summary**: Summarizing energy consumption across governors and workloads.
 
-### Usage
+### Usage First R Script (EDA.R)
 1. Place the combined CSV files (`cleaned_power_data_small.csv`, etc.) in the same directory as the R script.
 2. Update the R script to specify the input file and output folder:
    ```r
@@ -71,5 +71,13 @@ The R script processes the combined CSV file and generates three types of plots:
    - `power_trends.png`
    - `cpu_trends.png`
    - `energy_consumption.png`
+
+### Data Analysis by Second R Script
+The second R script does hypothesis testing and allows for the creation of the scatter plots
+
+### Usage Second R Script (Greenlab.R)
+1. Change the data variable on line 215 to be either data_low, data_medium, or data_high based on what graph should be used (small/medium/large).
+3. Run the R Script.
+3. The hypothesis testing data and descriptive statistics can be found in output.txt in the Statistics folder, and the scatter plots are generated.
 
 ---

@@ -218,7 +218,7 @@ data$workload_type <- trimws(data$workload_type)
 data$governor_type <- trimws(data$governor_type)
 
 showScatterplotUsage(data)
-#showScatterplotFreq(data)
+showScatterplotFreq(data)
 #(data)
 
 governors <- c("conservative", "ondemand", "performance", "schedutil", "userspace")
