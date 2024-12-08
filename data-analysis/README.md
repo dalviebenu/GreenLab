@@ -65,7 +65,7 @@ The R script processes the combined CSV file and generates three types of plots:
    ```
 3. Run the R script:
    ```bash
-   Rscript generate_plots.R
+   Rscript EDA.R
    ```
 4. The script generates the following plot files:
    - `power_trends.png`
